@@ -60,7 +60,11 @@ venv/
 htmlcov/
 
 # Claude Code 本地设置（可能含本地路径 / 个人偏好）
-.claude/settings.local.json
+.claude/
+
+# Skills / 技能工具（项目本地安装，非项目代码；全局副本在 ~/.claude/skills/）
+.agents/
+skills-lock.json
 
 # Playwright 认证
 playwright/.auth/
