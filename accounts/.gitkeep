@@ -1,0 +1,2 @@
+# 凭证账户数据在此目录下，但永不入仓
+# 使用 python -m src.main account add <alias> 添加账户

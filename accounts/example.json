@@ -1,0 +1,6 @@
+{
+  "alias": "personal",
+  "email": "your-email@example.com",
+  "password_env": "JOBSDB_PERSONAL_PASSWORD",
+  "notes": "示例：从环境变量读取密码更安全。此文件只做格式参考，请复制为新的 .json 填入真实凭证。"
+}
