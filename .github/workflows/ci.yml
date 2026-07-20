@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/v1.0, feature/v2.0]
+  pull_request:
+    branches: [main, feature/v1.0]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Create venv and install deps
+        run: |
+          uv venv
+          uv pip install -e ".[dev]"
+          uv pip install pytest-cov
+
+      # CI 只跑 unit + characterization,不装 playwright chromium(不起浏览器)
+      # v2.0 阶段0-4: 暂不卡覆盖率门槛(当前 38.81%,阶段5 补到 60% 后加回 --cov-fail-under=60)
+      - name: Run tests (unit + characterization only)
+        run: uv run pytest -m 'not e2e' --cov=src --cov-report=term-missing
+
+  # v2.0 阶段5 启用: 当前 v1.0 遗留 171 个 ruff 错误(F401/E501/UP006 等),
+  # 阶段5 收尾时统一 ruff check --fix + 手动处理,然后取消下方注释。
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v3
+  #     - name: Set up Python
+  #       run: uv python install 3.13
+  #     - name: Create venv and install deps
+  #       run: |
+  #         uv venv
+  #         uv pip install -e ".[dev]"
+  #     - name: Lint with ruff
+  #       run: uv run ruff check src/ tests/

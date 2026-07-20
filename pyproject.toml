@@ -66,3 +66,20 @@ ignore = []
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
+# v2.0: 测试三分类 marker
+markers = [
+    "e2e: 需要真实 JobsDB 网络 + 手动登录(慢,CI 不跑,默认跳过)",
+    "characterization: 锁定 v1.0 行为的安全网(快,CI 跑)",
+    "unit: 纯单元测试,不依赖浏览器(快,CI 必跑)",
+]
+# 默认不跑 e2e(本地 pytest 也不会误起浏览器)
+addopts = "-m 'not e2e'"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+# v2.0 阶段0-4: 暂不卡门槛(当前 ~39%,阶段5 补到 60% 后取消注释)
+# fail_under = 60
+show_missing = true
