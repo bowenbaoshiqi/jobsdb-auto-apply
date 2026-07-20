@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 环境变量（包含真实凭证，永远不上传）
+.env
+.env.*
+!.env.example
+
+# 数据目录（运行时数据：浏览器 profile、cookies、数据库、截图、日志）
+data/
+
+# 账户凭证（包含真实账号密码，永远不上传整个目录，仅保留示例文件）
+accounts/*
+!accounts/.gitkeep
+!accounts/example.json
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.bak
+
+# 虚拟环境
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试 / 类型检查缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Claude Code 本地设置（可能含本地路径 / 个人偏好）
+.claude/settings.local.json
+
+# Playwright 认证
+playwright/.auth/
+
+# macOS
+.DS_Store
