@@ -1,0 +1,56 @@
+browser:
+  headless: false
+  window_width: 1920
+  window_height: 1080
+  user_data_dir: "./data/browser_profile"
+  locale: "zh-HK"
+  timezone_id: "Asia/Hong_Kong"
+  geolocation:
+    latitude: 22.3193
+    longitude: 114.1694
+  viewport:
+    width: 1920
+    height: 1080
+  proxy: null
+
+jobsdb:
+  login_url: "https://hk.jobsdb.com/"
+  homepage_url: "https://hk.jobsdb.com/"
+  email: null
+  password: null
+
+simulation:
+  typing_typo_probability: 0.04
+  typing_base_delay_ms: 80.0
+  typing_delay_variance_ms: 40.0
+  mouse_bezier_points: 25
+  mouse_movement_speed_mean_ms: 10.0
+  mouse_movement_speed_std_ms: 3.0
+  scroll_min_duration_ms: 800.0
+  scroll_max_duration_ms: 1400.0
+
+scheduler:
+  max_applies_per_session: 10
+  max_per_hour: 10
+  max_per_day: 30
+  min_delay_between_seconds: 180.0
+  session_min_duration_minutes: 15.0
+  peak_hours_exclude:
+    - start: 9
+      end: 11
+    - start: 14
+      end: 16
+
+storage:
+  database_path: "./data/jobsdb.db"
+  screenshots_dir: "./data/screenshots"
+  cookies_file: "./data/cookies.json"
+
+monitoring:
+  log_level: "INFO"
+  log_file: "./data/logs/jobsdb_{time}.log"
+  log_rotation: "1 week"
+  log_retention: "1 month"
+  screenshot_on_error: true
+  alert_on_captcha: true
+  suspicion_threshold: 2

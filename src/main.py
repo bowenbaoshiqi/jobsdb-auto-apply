@@ -1,0 +1,459 @@
+"""
+CLI entry point
+
+Provides command line interface for controlling the job application assistant.
+"""
+
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from config.settings import get_config
+from src.accounts.registry import Account, AccountRegistry
+from src.monitor.logger import configure_logger
+from src.orchestrator import Orchestrator
+from src.storage.database import Database
+from src.utils.screenshot import generate_session_id
+
+app = typer.Typer(
+    name="jobsdb-assistant",
+    help="JobsDB 简历智能投递助手",
+    no_args_is_help=True,
+)
+
+account_app = typer.Typer(help="多账户管理器")
+app.add_typer(account_app, name="account")
+
+console = Console()
+
+
+@app.callback()
+def main(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="显示详细日志"),
+):
+    """JobsDB 简历智能投递助手"""
+    config = get_config()
+
+    # Configure logs
+    log_level = "DEBUG" if verbose else config.monitoring.log_level
+    configure_logger(
+        log_level=log_level,
+        log_file=config.monitoring.log_file,
+        log_rotation=config.monitoring.log_rotation,
+        log_retention=config.monitoring.log_retention,
+    )
+
+
+@app.command()
+def start(
+    account: Optional[str] = typer.Option(
+        None, "--account", "-a",
+        help="指定账户别名"
+    ),
+    max_jobs: int = typer.Option(
+        None, "--max-jobs", "-m",
+        help="本次投递最大职位数",
+    ),
+    headless: bool = typer.Option(
+        False, "--headless", "-h",
+        help="无头模式（不显示浏览器窗口）",
+    ),
+):
+    """启动简历投递"""
+    config = get_config()
+
+    # 解析账户
+    registry = AccountRegistry()
+    resolved = registry.resolve_active(account)
+
+    # If headless mode is specified, update the configuration
+    if headless:
+        config.browser.headless = True
+
+    # Display startup information
+    console.print(Panel.fit(
+        f"[bold green]JobsDB Resume Assistant[/bold green]\n"
+        f"Account: [cyan]{resolved.alias}[/cyan] ({AccountRegistry.mask_email(resolved.email)})\n"
+        f"Target: {config.jobsdb.homepage_url}\n"
+        f"Max jobs: {max_jobs or config.scheduler.max_applies_per_session}\n"
+        f"Headless: {config.browser.headless}",
+        title="Starting",
+        border_style="green",
+    ))
+
+    # Run the Orchestrator
+    import asyncio
+
+    async def run():
+        orchestrator = Orchestrator(config, account=resolved, max_jobs=max_jobs)
+        result = await orchestrator.run()
+        return result
+
+    try:
+        result = asyncio.run(run())
+
+        # Display results
+        if "error" in result:
+            console.print(f"[bold red]Error: {result['error']}[/bold red]")
+        else:
+            _print_result_table(result)
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+    except Exception as e:
+        console.print(f"[bold red]Fatal error: {e}[/bold red]")
+        raise
+
+
+@app.command()
+def stats(
+    days: int = typer.Option(
+        7, "--days", "-d",
+        help="统计最近多少天",
+    ),
+    account: Optional[str] = typer.Option(
+        None, "--account", "-a",
+        help="按账户过滤",
+    ),
+):
+    """查看投递统计"""
+    config = get_config()
+    db = Database(config.storage.database_path)
+    if account:
+        db.set_account(account)
+
+    stats_data = db.get_stats(days, account=account)
+
+    console.print(Panel.fit(
+        f"[bold blue]投递统计（最近 {days} 天）[/bold blue]",
+        border_style="blue",
+    ))
+
+    # Total count
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("指标", style="dim")
+    table.add_column("数值", justify="right")
+
+    table.add_row("总投递数", str(stats_data["total"]))
+    table.add_row("成功数", str(stats_data["success"]))
+    table.add_row("失败数", str(stats_data["failed"]))
+    table.add_row("成功率", f"{stats_data['success_rate']:.1f}%")
+
+    console.print(table)
+
+    # Daily details
+    if stats_data["daily_breakdown"]:
+        console.print("\n[bold]每日明细:[/bold]")
+        daily_table = Table(show_header=True, header_style="bold cyan")
+        daily_table.add_column("日期")
+        daily_table.add_column("投递数", justify="right")
+        daily_table.add_column("成功数", justify="right")
+
+        for day in stats_data["daily_breakdown"]:
+            daily_table.add_row(
+                day["date"],
+                str(day["count"]),
+                str(day["success"]),
+            )
+
+        console.print(daily_table)
+
+
+@app.command()
+def sessions(
+    limit: int = typer.Option(
+        10, "--limit", "-l",
+        help="显示最近多少条会话",
+    ),
+    account: Optional[str] = typer.Option(
+        None, "--account", "-a",
+        help="按账户过滤",
+    ),
+):
+    """查看会话历史"""
+    config = get_config()
+    db = Database(config.storage.database_path)
+    if account:
+        db.set_account(account)
+
+    sessions_data = db.get_recent_sessions(limit, account=account)
+
+    console.print(Panel.fit(
+        f"[bold blue]会话历史（最近 {limit} 条）[/bold blue]",
+        border_style="blue",
+    ))
+
+    if not sessions_data:
+        console.print("[dim]暂无会话记录[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("会话ID", style="dim")
+    table.add_column("开始时间")
+    table.add_column("结束时间")
+    table.add_column("状态", justify="center")
+    table.add_column("投递数", justify="right")
+    table.add_column("成功", justify="right")
+    table.add_column("失败", justify="right")
+    table.add_column("账户", justify="center")
+
+    for session in sessions_data:
+        table.add_row(
+            session["id"],
+            session["started_at"],
+            session.get("ended_at", "—") or "—",
+            session["status"],
+            str(session.get("jobs_attempted", 0)),
+            str(session.get("jobs_succeeded", 0)),
+            str(session.get("jobs_failed", 0)),
+            session.get("account_id", "default"),
+        )
+
+    console.print(table)
+
+
+@app.command()
+def validate():
+    """验证配置"""
+    config = get_config()
+
+    console.print(Panel.fit(
+        "[bold yellow]配置验证[/bold yellow]",
+        border_style="yellow",
+    ))
+
+    # Check jobsDB configuration
+    if not config.jobsdb.email or not config.jobsdb.password:
+        console.print("[red]✗[/red] JobsDB email 或 password 未配置")
+        console.print("  请在 .env 文件中设置 JOBSDB_EMAIL 和 JOBSDB_PASSWORD")
+    else:
+        console.print(f"[green]✓[/green] JobsDB email: {config.jobsdb.email[:3]}***")
+
+    # Check data directory
+    import os
+    dirs_to_check = [
+        ("数据目录", "./data"),
+        ("浏览器 profile", config.browser.user_data_dir),
+        ("数据库", config.storage.database_path),
+    ]
+
+    for name, path in dirs_to_check:
+        if os.path.exists(path) or os.path.exists(os.path.dirname(path)):
+            console.print(f"[green]✓[/green] {name}: {path}")
+        else:
+            console.print(f"[red]✗[/red] {name}: {path} (不存在)")
+
+    # Check accounts
+    registry = AccountRegistry()
+    accounts = registry.list_all()
+    if accounts:
+        console.print("\n[bold]已配置账户:[/bold]")
+        for acc in accounts:
+            console.print(f"  [green]✓[/green] {acc.alias} ({AccountRegistry.mask_email(acc.email)})")
+    else:
+        console.print("\n[dim]未在 accounts/ 下注册额外账户[/dim]")
+
+    console.print("\n[dim]提示：运行 `python -m src.main start` 开始投递[/dim]")
+    console.print("[dim]提示：运行 `python -m src.main account add <alias>` 添加账户[/dim]")
+
+
+@app.command()
+def reset(
+    profile: bool = typer.Option(
+        False, "--profile", "-p",
+        help="重置浏览器 profile",
+    ),
+    database: bool = typer.Option(
+        False, "--database", "-d",
+        help="重置数据库",
+    ),
+    all_data: bool = typer.Option(
+        False, "--all", "-a",
+        help="重置所有数据（包括 profile 和数据库）",
+    ),
+    account: Optional[str] = typer.Option(
+        None, "--account",
+        help="仅重置指定账户的 profile",
+    ),
+):
+    """重置数据（危险操作！）"""
+    import shutil
+
+    if all_data:
+        profile = True
+        database = True
+
+    if not profile and not database:
+        console.print("[yellow]请指定要重置的内容：--profile / --database / --all[/yellow]")
+        return
+
+    if all_data:
+        confirm = typer.confirm("确定要重置所有数据吗？此操作不可恢复！")
+    else:
+        confirm = typer.confirm(f"确定要重置选中的数据吗？")
+
+    if not confirm:
+        console.print("[dim]已取消[/dim]")
+        return
+
+    config = get_config()
+
+    if profile:
+        if account:
+            profile_dir = Path(config.browser.user_data_dir) / account
+        else:
+            profile_dir = Path(config.browser.user_data_dir)
+        if profile_dir.exists():
+            shutil.rmtree(profile_dir)
+            console.print(f"[green]✓[/green] 已清除浏览器 profile: {profile_dir}")
+
+    if database:
+        db_path = config.storage.database_path
+        if os.path.exists(db_path):
+            os.remove(db_path)
+            console.print(f"[green]✓[/green] 已清除数据库: {db_path}")
+
+    console.print("[green]重置完成[/green]")
+
+
+# ---- Account subcommand group ----
+
+@account_app.command("list")
+def account_list():
+    """List all accounts"""
+    registry = AccountRegistry()
+    accounts = registry.list_all()
+
+    console.print(Panel.fit(
+        f"[bold blue]账户列表（共 {len(accounts)} 个）[/bold blue]",
+        border_style="blue",
+    ))
+
+    if not accounts:
+        console.print("[dim]暂无注册账户[/dim]")
+        console.print("[dim]请使用 `python -m src.main account add <alias>` 添加[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("别名")
+    table.add_column("邮箱")
+    table.add_column("活跃", justify="center")
+
+    active_alias = registry.get_active_alias()
+    for acc in accounts:
+        is_active = "✓" if acc.alias == active_alias else ""
+        masked_email = AccountRegistry.mask_email(acc.email)
+        table.add_row(acc.alias, masked_email, is_active)
+
+    console.print(table)
+
+
+@account_app.command("add")
+def account_add(
+    alias: str = typer.Argument(..., help="账户别名（唯一）"),
+    email: str = typer.Option(..., "--email", "-e", help="JobsDB 邮箱"),
+    password: Optional[str] = typer.Option(
+        None, "--password", "-p",
+        help="密码（不传则交互式输入）",
+    ),
+) -> None:
+    """Add a new account"""
+    registry = AccountRegistry()
+
+    # Check if duplicate
+    if registry.get(alias):
+        console.print(f"[red]✗[/red] 账户 {alias} 已存在")
+        raise typer.Exit(code=1)
+
+    if not password:
+        password = typer.prompt("请输入密码", hide_input=True)
+
+    account = Account(alias=alias, email=email, password=password)
+    registry.save(account)
+    console.print(f"[green]✓[/green] 账户 {alias} 已添加")
+
+
+@account_app.command("remove")
+def account_remove(
+    alias: str = typer.Argument(..., help="账户别名"),
+    force: bool = typer.Option(False, "--force", "-f", help="强制删除，不确认"),
+) -> None:
+    """Delete an account"""
+    registry = AccountRegistry()
+
+    if not registry.get(alias):
+        console.print(f"[red]✗[/red] 账户 {alias} 不存在")
+        raise typer.Exit(code=1)
+
+    if not force:
+        confirmed = typer.confirm(f"确定删除账户 {alias} 吗？此操作不可恢复！")
+        if not confirmed:
+            console.print("[dim]已取消[/dim]")
+            return
+
+    registry.delete(alias)
+    console.print(f"[green]✓[/green] 已删除账户 {alias}")
+
+
+@account_app.command("use")
+def account_use(
+    alias: str = typer.Argument(..., help="账户别名"),
+) -> None:
+    """Switch active account"""
+    registry = AccountRegistry()
+    try:
+        registry.set_active(alias)
+        console.print(f"[green]✓[/green] 活跃账户已切换为 {alias}")
+    except ValueError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@account_app.command("show")
+def account_show() -> None:
+    """Show current active account"""
+    registry = AccountRegistry()
+    active = registry.get_active_alias()
+
+    if not active:
+        # Try to infer from .env
+        config = get_config()
+        if config.jobsdb.email:
+            console.print(f"当前使用 .env 默认账户: {AccountRegistry.mask_email(config.jobsdb.email)}")
+        else:
+            console.print("[dim]未指定活跃账户[/dim]")
+        return
+
+    acc = registry.get(active)
+    if not acc:
+        console.print(f"[yellow]活跃账户 {active} 已被删除[/yellow]")
+        return
+
+    console.print(Panel.fit(
+        f"[bold blue]当前活跃账户[/bold blue]\n"
+        f"别名: {acc.alias}\n"
+        f"邮箱: {AccountRegistry.mask_email(acc.email)}",
+        border_style="blue",
+    ))
+
+
+def _print_result_table(result: dict) -> None:
+    """Print the result table"""
+    table = Table(show_header=True, header_style="bold green")
+    table.add_column("指标")
+    table.add_column("数值", justify="right")
+
+    table.add_row("处理职位数", str(result.get("total", 0)))
+    table.add_row("投递成功", str(result.get("success", 0)))
+    table.add_row("投递失败", str(result.get("failed", 0)))
+    table.add_row("跳过（已投递）", str(result.get("skipped", 0)))
+    table.add_row("成功率", f"{result.get('success_rate', 0)}%")
+
+    console.print(Panel(table, title="投递结果", border_style="green"))
+
+
+if __name__ == "__main__":
+    app()
