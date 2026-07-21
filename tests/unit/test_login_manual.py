@@ -1,0 +1,229 @@
+"""
+单元测试: LoginHandler 手动登录模式(manual mode)
+
+验证 brainstorming 设计 docs/superpowers/specs/2026-07-21-manual-login-mode-design.md:
+- manual 模式不要求凭证,绕过 _get_credentials
+- manual 模式被动轮询 _is_logged_in,登录成功后备份 cookies
+- manual 模式超时返回 False(不抛异常)
+- auto 模式行为不变(无凭证仍抛 LoginError,回归保护 TC-15)
+- login_config 默认 auto(向后兼容)
+
+用 FakePageController 注入,不起浏览器。USER_AVATAR 元素存在 = 已登录。
+"""
+
+import asyncio
+
+import pytest
+
+from config.settings import JobsDBConfig, LoginConfig
+from src.accounts.registry import Account
+from src.browser.fake.fake_page import FakeElement, FakePageController
+from src.jobsdb.exceptions import LoginError
+from src.jobsdb.login import LoginHandler
+from src.jobsdb.selectors import USER_AVATAR
+
+
+def _make_page(logged_in: bool = False, url: str = "https://hk.jobsdb.com/") -> FakePageController:
+    """构造 FakePageController:logged_in=True 时预设 USER_AVATAR 元素(=_is_logged_in 命中)。"""
+    page = FakePageController(url=url)
+    if logged_in:
+        page.set_element(USER_AVATAR, FakeElement(visible=True))
+    return page
+
+
+def _make_handler(page, mode: str = "manual", *,
+                  manual_wait_minutes: float = 30,
+                  poll_interval_seconds: float = 7.5,
+                  account: Account = None) -> LoginHandler:
+    """构造 LoginHandler,注入指定 login_config。account 默认 None(无凭证)。"""
+    config = JobsDBConfig()
+    login_config = LoginConfig(
+        mode=mode,
+        manual_wait_minutes=manual_wait_minutes,
+        poll_interval_seconds=poll_interval_seconds,
+    )
+    return LoginHandler(page, config, human=None, account=account,
+                        login_config=login_config)
+
+
+# ═══════════════════════════════════════════════════════
+#  默认配置(向后兼容)
+# ═══════════════════════════════════════════════════════
+
+class TestLoginConfigDefaults:
+    def test_login_config_defaults_to_auto(self):
+        """不传 login_config → 默认 auto(v1.0 行为)"""
+        page = _make_page()
+        handler = LoginHandler(page, JobsDBConfig())  # 两参构造,向后兼容
+        assert handler.login_config.mode == "auto"
+
+
+# ═══════════════════════════════════════════════════════
+#  manual 模式:已登录短路
+# ═══════════════════════════════════════════════════════
+
+class TestManualModeAlreadyLoggedIn:
+    @pytest.mark.asyncio
+    async def test_manual_mode_no_credentials_succeeds_when_logged_in(self):
+        """manual + profile 已登录 → 返回 True,不要求凭证,不进轮询"""
+        page = _make_page(logged_in=True)
+        # account=None,无 .env 凭证 → auto 模式会抛 LoginError,manual 不应抛
+        handler = _make_handler(page, mode="manual", account=None)
+
+        result = await handler.ensure_logged_in()
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_manual_mode_does_not_call_get_credentials(self, monkeypatch):
+        """manual + 无凭证 → 不调用 _get_credentials(否则会抛 LoginError)"""
+        page = _make_page(logged_in=True)
+        handler = _make_handler(page, mode="manual", account=None)
+
+        # 把 _get_credentials 替换成会抛异常的探针:若被调用,测试必失败
+        async def _boom(self):
+            raise AssertionError("manual 模式不应调用 _get_credentials")
+        monkeypatch.setattr(LoginHandler, "_get_credentials", _boom)
+
+        result = await handler.ensure_logged_in()
+        assert result is True
+
+
+# ═══════════════════════════════════════════════════════
+#  manual 模式:轮询直到登录
+# ═══════════════════════════════════════════════════════
+
+class TestManualModePolling:
+    @pytest.mark.asyncio
+    async def test_manual_mode_polls_until_logged_in(self, monkeypatch):
+        """manual + 首次未登录 → 轮询 N 次后 _is_logged_in 命中 → 返回 True"""
+        page = _make_page(logged_in=False)
+        handler = _make_handler(
+            page, mode="manual",
+            manual_wait_minutes=1, poll_interval_seconds=0.01,  # 极小,快速跑完
+        )
+
+        # asyncio.sleep 替换成立即返回(不真等),加速测试
+        async def _no_sleep(_):
+            return None
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+
+        # 第 3 次轮询时设为已登录(模拟用户登录完成)
+        original_is_logged_in = LoginHandler._is_logged_in
+        call_count = {"n": 0}
+
+        async def _is_logged_in_after_3(self):
+            call_count["n"] += 1
+            if call_count["n"] >= 3:
+                page.set_element(USER_AVATAR, FakeElement(visible=True))
+            return await original_is_logged_in(self)
+
+        monkeypatch.setattr(LoginHandler, "_is_logged_in", _is_logged_in_after_3)
+
+        result = await handler.ensure_logged_in()
+
+        assert result is True
+        assert call_count["n"] >= 3  # 确实轮询了
+
+
+# ═══════════════════════════════════════════════════════
+#  manual 模式:超时
+# ═══════════════════════════════════════════════════════
+
+class TestManualModeTimeout:
+    @pytest.mark.asyncio
+    async def test_manual_mode_timeout_returns_false(self, monkeypatch):
+        """manual + 永远未登录 + 超时 → 返回 False(不抛异常)"""
+        page = _make_page(logged_in=False)
+        handler = _make_handler(
+            page, mode="manual",
+            manual_wait_minutes=0.01,        # 0.6 秒超时
+            poll_interval_seconds=0.1,       # 每 0.1s 轮询
+        )
+
+        async def _no_sleep(_):
+            return None
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+
+        result = await handler.ensure_logged_in()
+
+        assert result is False  # 超时,不抛异常
+
+    @pytest.mark.asyncio
+    async def test_manual_mode_timeout_does_not_raise_login_error(self, monkeypatch):
+        """manual 超时 → 返回 False,不是 LoginError(Orchestrator 走 error_report,不误吞)"""
+        page = _make_page(logged_in=False)
+        handler = _make_handler(
+            page, mode="manual",
+            manual_wait_minutes=0.01, poll_interval_seconds=0.1,
+        )
+
+        async def _no_sleep(_):
+            return None
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+
+        # 不应抛任何异常,返回 False
+        result = await handler.ensure_logged_in()
+        assert result is False
+
+
+# ═══════════════════════════════════════════════════════
+#  manual 模式:cookie 备份
+# ═══════════════════════════════════════════════════════
+
+class TestManualModeCookieBackup:
+    @pytest.mark.asyncio
+    async def test_manual_mode_backs_up_jobsdb_cookies(self, monkeypatch, tmp_path):
+        """登录成功后 cookies_<alias>.json 含 jobsdb/seek 域 cookie"""
+        page = _make_page(logged_in=True)
+        page.set_cookies([
+            {"name": "AccessToken", "value": "tok", "domain": ".jobsdb.com"},
+            {"name": "JSESSIONID", "value": "js", "domain": ".seek.com"},
+            {"name": "irrelevant", "value": "x", "domain": ".google.com"},
+        ])
+        acct = Account(alias="testacct", email="t@e.com", password="x")
+        handler = _make_handler(page, mode="manual", account=acct)
+
+        # 备份到 tmp_path(不污染 data/)
+        import json
+        cookie_file = tmp_path / "cookies_testacct.json"
+        monkeypatch.setattr(
+            "src.jobsdb.login.CookieStore",
+            lambda path: _StubCookieStore(cookie_file),
+        )
+
+        # ensure_logged_in 会短路(已登录)并备份
+        await handler.ensure_logged_in()
+
+        assert cookie_file.exists()
+        saved = json.loads(cookie_file.read_text())
+        domains = {c["domain"] for c in saved}
+        assert ".jobsdb.com" in domains
+        assert ".seek.com" in domains
+        assert ".google.com" not in domains  # 只存 jobsdb/seek 域
+
+
+class _StubCookieStore:
+    """替身 CookieStore:写到指定路径,供断言。实现 LoginHandler 用到的 save 方法。"""
+
+    def __init__(self, path):
+        self.path = path
+
+    def save(self, cookies):
+        import json
+        self.path.write_text(json.dumps(cookies))
+
+
+# ═══════════════════════════════════════════════════════
+#  auto 模式:回归保护(TC-15 不破)
+# ═══════════════════════════════════════════════════════
+
+class TestAutoModeRegression:
+    @pytest.mark.asyncio
+    async def test_auto_mode_still_requires_credentials(self):
+        """auto + 无凭证 → 抛 LoginError(TC-15 回归保护)"""
+        page = _make_page(logged_in=False)
+        handler = _make_handler(page, mode="auto", account=None)
+
+        with pytest.raises(LoginError):
+            await handler.ensure_logged_in()
