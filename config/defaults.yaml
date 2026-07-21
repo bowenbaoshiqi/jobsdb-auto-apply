@@ -19,6 +19,11 @@ jobsdb:
   email: null
   password: null
 
+login:
+  mode: "auto"               # auto=自动填密码 / manual=等用户手动登录(推荐,一次登录长期复用)
+  manual_wait_minutes: 30    # manual 模式最大等待时长
+  poll_interval_seconds: 7.5 # manual 模式轮询登录态间隔
+
 simulation:
   typing_typo_probability: 0.04
   typing_base_delay_ms: 80.0

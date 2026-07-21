@@ -34,6 +34,25 @@ class JobsDBConfig(BaseModel):
     password: Optional[str] = None
 
 
+class LoginConfig(BaseModel):
+    """登录策略配置
+
+    mode:
+    - "auto":   自动填邮箱密码登录(需要真实凭证,可能触发风控/验证码)
+    - "manual": 打开浏览器等用户手动登录(可自己过验证码),
+                登录态由 Chromium 持久化 profile 保存,一次登录长期复用
+    """
+    mode: str = "auto"
+    manual_wait_minutes: int = 30      # manual 模式等待用户登录的最大时长
+    poll_interval_seconds: float = 7.5  # manual 模式轮询登录态的间隔
+
+    @validator("mode")
+    def validate_mode(cls, v):
+        if v not in ("auto", "manual"):
+            raise ValueError("login.mode must be 'auto' or 'manual'")
+        return v
+
+
 class AccountConfig(BaseModel):
     """账户配置（多账户支持）"""
     alias: str                    # 账户别名，如 "personal" / "work"
@@ -105,6 +124,7 @@ class AppConfig(BaseSettings):
     active_account: str = "default"  # 当前活跃账户别名
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     jobsdb: JobsDBConfig = Field(default_factory=JobsDBConfig)
+    login: LoginConfig = Field(default_factory=LoginConfig)
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)

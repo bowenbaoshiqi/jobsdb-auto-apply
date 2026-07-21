@@ -57,6 +57,30 @@ cp .env.example .env
 # 编辑 .env 填入你的 JobsDB 邮箱和密码
 ```
 
+### 3.1 登录模式
+
+投递前需要登录 JobsDB。支持两种模式（`config.login.mode` 或 CLI `--login-mode` 切换）：
+
+| 模式 | 说明 | 凭证要求 | 适用场景 |
+|------|------|----------|----------|
+| `auto`（默认） | 自动填邮箱密码登录 | 需 `.env` 或账户配置 | 凭证已配置、可接受风控/验证码风险 |
+| `manual` | 打开浏览器等用户手动登录，被动轮询登录态 | **无需凭证** | 持久化 profile 一次登录长期复用，规避风控 |
+
+**推荐 `manual`**：配合持久化浏览器 profile（`data/browser_profile/<alias>`），手动登录一次后 session 长期保留，后续投递无需再输密码/过验证码。manual 模式自动禁用 headless（需在浏览器窗口操作）。
+
+```bash
+# manual 模式启动（无需配置凭证）
+python -m src.main start --login-mode manual --max-jobs 5
+
+# 或在 config/defaults.yaml 设置
+# login:
+#   mode: "manual"
+#   manual_wait_minutes: 30       # 等待用户登录的最大时长
+#   poll_interval_seconds: 7.5    # 轮询登录态间隔
+```
+
+程序会导航到登录页并等待，你在浏览器窗口完成登录（可处理验证码），程序检测到登录态后自动备份 cookies 并开始投递。超时（默认 30 分钟）则退出。
+
 ### 4. 开始投递
 
 ```bash
@@ -66,12 +90,33 @@ python scripts/auto_apply.py 5
 # 或使用 CLI 投递
 python -m src.main start --max-jobs 5
 
+# manual 模式（无需凭证，持久化 profile 复用登录态）
+python -m src.main start --login-mode manual --max-jobs 5
+
 # 查看统计
 python -m src.main stats
 
 # 查看会话历史
 python -m src.main sessions
 ```
+
+### 4.1 清理运行时残留
+
+`data/` 会累积浏览器 profile、调试截图、日志等运行时数据。用 `scripts/clean_data.py` 定期清理：
+
+```bash
+# 默认 dry-run，只列出要删的（安全）
+python scripts/clean_data.py
+
+# 实际删除
+python scripts/clean_data.py --apply
+
+# 保留 browser_profile 持久登录态（只清测试/debug 产物）
+python scripts/clean_data.py --apply --keep-profiles
+```
+
+> 清理只动 `data/`，绝不碰 `accounts/`、`.env`（见 [🔒 安全说明](#-安全说明)）。
+
 
 ## 📁 项目结构
 

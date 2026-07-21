@@ -2,6 +2,60 @@
 
 本项目遵循 [语义化版本](https://semver.org/)。
 
+## [v2.1.0] — 2026-07-21 — 手动登录模式 + 残留清理
+
+### 概述
+
+把 v1.0 的手动登录流程收编成正式能力：`LoginHandler` 按 `config.login.mode` 切换 auto/manual，CLI 增 `--login-mode` 旗标。同时清理三份临时 monkeypatch 脚本与 `data/` 下 710MB 运行时残留。
+
+设计文档：[docs/superpowers/specs/2026-07-21-manual-login-mode-design.md](docs/superpowers/specs/2026-07-21-manual-login-mode-design.md)
+TDD 证据：[docs/testing/2026-07-21-manual-login-mode.tdd.md](docs/testing/2026-07-21-manual-login-mode.tdd.md)
+
+### 新增
+
+#### 1. `LoginHandler` manual 登录模式
+- `LoginHandler.__init__` 增 `login_config: LoginConfig` 参数（默认 None → auto，向后兼容）
+- `ensure_logged_in` 按 `config.login.mode` 分支：`manual` → `_do_login_manual`，`auto` → 原 `_do_login`（不变）
+- `_do_login_manual`：导航登录页 → logger 通知 → 被动轮询 `_is_logged_in` → 登录成功备份 cookies → 超时返回 False（不抛异常）
+- `_backup_session_cookies`：登录成功后备份 jobsdb/seek 域 cookies 到 `data/cookies_<alias>.json`
+- **manual 模式不要求凭证**：绕过 `_get_credentials`，持久化 profile 即凭证
+
+#### 2. CLI `--login-mode` 旗标
+- `src/main.py start` 增 `--login-mode {auto,manual}`，覆盖 `config.login.mode`
+- manual 模式强制 headed（用户需在浏览器窗口登录）
+
+#### 3. 激活闲置的 `LoginConfig`
+- `config/login.mode` / `manual_wait_minutes` / `poll_interval_seconds` 此前已定义但从未被源码读取，本次正式激活
+
+#### 4. `scripts/clean_data.py`
+- 默认 dry-run，`--apply` 才真删；`--keep-profiles` 保留 `browser_profile` 持久登录态
+- 清 24 个 `browser_profile_test_*` + 实验 profile + debug 产物 + 临时 cookies/db/log
+- 只动 `data/`，绝不碰 `accounts/`、`.env`
+
+### 变更
+
+- `ComponentFactory.create_login_handler` 增 `login_config` 参数，`DefaultFactory`/`FakeFactory` 同步透传
+- `Orchestrator._init_browser` 传 `self.config.login` 给工厂
+
+### 删除
+
+- `run_v2_apply.py` / `run_v2_apply_chrome.py` / `run_v2_apply_manual.py`（均 untracked，能力已被 `--login-mode manual` 取代）
+- `data/` 下 710MB 运行时残留（24 个测试 profile、debug HTML/PNG、临时 db/cookies/log）
+
+### 测试
+
+- 新增 `tests/unit/test_login_manual.py`（9 用例）：manual 模式凭证无关、轮询、超时、cookie 备份、auto 回归保护
+- 新增 `tests/unit/test_factory.py` 2 用例：`login_config` 透传 / 默认 auto
+- 全量回归 309 passed, 1 skipped；总覆盖率 67.52%（超 60% 门槛）；touched files ruff 零告警
+
+### 非目标
+
+- 真实 Chrome profile 方案（系统 Chrome 目录 hack）未收编，另立议题
+- OS 通知（osascript）不做，manual 模式仅 logger 通知
+- `scripts/auto_apply.py`（v1.0 遗留）未动，超出本次范围
+
+---
+
 ## [v2.0.0] — 2026-07-20 — TDD 重构
 
 ### 概述
