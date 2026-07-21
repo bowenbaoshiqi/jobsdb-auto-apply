@@ -32,10 +32,14 @@ def _make_page(logged_in: bool = False, url: str = "https://hk.jobsdb.com/") -> 
 
 
 def _make_handler(page, mode: str = "manual", *,
-                  manual_wait_minutes: float = 30,
+                  manual_wait_minutes: int = 30,
                   poll_interval_seconds: float = 7.5,
                   account: Account = None) -> LoginHandler:
-    """构造 LoginHandler,注入指定 login_config。account 默认 None(无凭证)。"""
+    """构造 LoginHandler,注入指定 login_config。account 默认 None(无凭证)。
+
+    manual_wait_minutes 是 int(与 LoginConfig schema 一致);测试需快速超时时
+    配合极小的 poll_interval_seconds + monkeypatch asyncio.sleep 为 no-op。
+    """
     config = JobsDBConfig()
     login_config = LoginConfig(
         mode=mode,
@@ -108,22 +112,25 @@ class TestManualModePolling:
             return None
         monkeypatch.setattr(asyncio, "sleep", _no_sleep)
 
-        # 第 3 次轮询时设为已登录(模拟用户登录完成)
+        # ensure_logged_in 先在"已登录"预检循环调 _is_logged_in 3 次(都应 False),
+        # 然后进 _do_login_manual。设阈值 >=5:预检 3 次 + manual 内首次检查(第4次)
+        # 都 False,第 5 次(manual 轮询)起返回 True → 证明确实进了轮询循环。
         original_is_logged_in = LoginHandler._is_logged_in
         call_count = {"n": 0}
 
-        async def _is_logged_in_after_3(self):
+        async def _is_logged_in_after_polling(self):
             call_count["n"] += 1
-            if call_count["n"] >= 3:
+            if call_count["n"] >= 5:
                 page.set_element(USER_AVATAR, FakeElement(visible=True))
             return await original_is_logged_in(self)
 
-        monkeypatch.setattr(LoginHandler, "_is_logged_in", _is_logged_in_after_3)
+        monkeypatch.setattr(LoginHandler, "_is_logged_in", _is_logged_in_after_polling)
 
         result = await handler.ensure_logged_in()
 
         assert result is True
-        assert call_count["n"] >= 3  # 确实轮询了
+        # 第 5 次才命中 → 证明经过了预检(3次)+ manual 内首次检查(1次)+ 至少 1 次轮询
+        assert call_count["n"] >= 5
 
 
 # ═══════════════════════════════════════════════════════
@@ -137,8 +144,8 @@ class TestManualModeTimeout:
         page = _make_page(logged_in=False)
         handler = _make_handler(
             page, mode="manual",
-            manual_wait_minutes=0.01,        # 0.6 秒超时
-            poll_interval_seconds=0.1,       # 每 0.1s 轮询
+            manual_wait_minutes=1,             # int(schema 要求);配合下面的极小间隔
+            poll_interval_seconds=0.01,        # 每次轮询间隔 0.01s
         )
 
         async def _no_sleep(_):
@@ -155,7 +162,7 @@ class TestManualModeTimeout:
         page = _make_page(logged_in=False)
         handler = _make_handler(
             page, mode="manual",
-            manual_wait_minutes=0.01, poll_interval_seconds=0.1,
+            manual_wait_minutes=1, poll_interval_seconds=0.01,
         )
 
         async def _no_sleep(_):
@@ -174,7 +181,12 @@ class TestManualModeTimeout:
 class TestManualModeCookieBackup:
     @pytest.mark.asyncio
     async def test_manual_mode_backs_up_jobsdb_cookies(self, monkeypatch, tmp_path):
-        """登录成功后 cookies_<alias>.json 含 jobsdb/seek 域 cookie"""
+        """_backup_session_cookies 只存 jobsdb/seek 域 cookie 到 cookies_<alias>.json
+
+        直接测 _backup_session_cookies(纯单元):ensure_logged_in 的"已登录短路"
+        路径不调备份(由 BrowserEngine.stop 统一保存),只有 _do_login_manual 登录
+        成功才调。这里隔离验证域过滤逻辑。
+        """
         page = _make_page(logged_in=True)
         page.set_cookies([
             {"name": "AccessToken", "value": "tok", "domain": ".jobsdb.com"},
@@ -184,7 +196,7 @@ class TestManualModeCookieBackup:
         acct = Account(alias="testacct", email="t@e.com", password="x")
         handler = _make_handler(page, mode="manual", account=acct)
 
-        # 备份到 tmp_path(不污染 data/)
+        # 备份到 tmp_path(不污染 data/);替换 CookieStore 为写指定路径的替身
         import json
         cookie_file = tmp_path / "cookies_testacct.json"
         monkeypatch.setattr(
@@ -192,15 +204,59 @@ class TestManualModeCookieBackup:
             lambda path: _StubCookieStore(cookie_file),
         )
 
-        # ensure_logged_in 会短路(已登录)并备份
-        await handler.ensure_logged_in()
+        n = await handler._backup_session_cookies()
 
+        assert n == 2  # 只存 jobsdb + seek 两个
         assert cookie_file.exists()
         saved = json.loads(cookie_file.read_text())
         domains = {c["domain"] for c in saved}
         assert ".jobsdb.com" in domains
         assert ".seek.com" in domains
-        assert ".google.com" not in domains  # 只存 jobsdb/seek 域
+        assert ".google.com" not in domains  # 非 jobsdb/seek 域被过滤
+
+    @pytest.mark.asyncio
+    async def test_manual_login_path_calls_backup_on_success(self, monkeypatch, tmp_path):
+        """_do_login_manual 登录成功(轮询命中)后调用 _backup_session_cookies
+
+        端到端验证 manual 登录路径触发备份(与上面的纯单元互补)。
+        """
+        page = _make_page(logged_in=False)
+        handler = _make_handler(
+            page, mode="manual",
+            manual_wait_minutes=1, poll_interval_seconds=0.01,
+        )
+
+        async def _no_sleep(_):
+            return None
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+
+        # ensure_logged_in 先在"已登录"预检循环里调 _is_logged_in 3 次(都应返回 False),
+        # 然后才进 _do_login_manual。设阈值 >=4:预检 3 次都 False,第 4 次
+        # (manual 路径内的检查)起返回 True → 触发备份。
+        original = LoginHandler._is_logged_in
+        call_count = {"n": 0}
+
+        async def _is_logged_in_then_yes(self):
+            call_count["n"] += 1
+            if call_count["n"] >= 4:
+                page.set_element(USER_AVATAR, FakeElement(visible=True))
+            return await original(self)
+
+        monkeypatch.setattr(LoginHandler, "_is_logged_in", _is_logged_in_then_yes)
+
+        # 探针:记录 _backup_session_cookies 是否被调用
+        backup_called = {"v": False}
+        original_backup = LoginHandler._backup_session_cookies
+
+        async def _spy_backup(self):
+            backup_called["v"] = True
+            return await original_backup(self)
+
+        monkeypatch.setattr(LoginHandler, "_backup_session_cookies", _spy_backup)
+
+        result = await handler.ensure_logged_in()
+        assert result is True
+        assert backup_called["v"] is True
 
 
 class _StubCookieStore:
