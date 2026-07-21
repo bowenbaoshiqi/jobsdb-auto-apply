@@ -63,6 +63,11 @@ def start(
         False, "--headless", "-h",
         help="无头模式（不显示浏览器窗口）",
     ),
+    login_mode: Optional[str] = typer.Option(
+        None, "--login-mode",
+        help="登录模式: auto(自动填密码,需凭证) / manual(等用户手动登录,无需凭证)。"
+             "覆盖 config.login.mode",
+    ),
 ):
     """启动简历投递"""
     config = get_config()
@@ -75,13 +80,22 @@ def start(
     if headless:
         config.browser.headless = True
 
+    # 登录模式覆盖(CLI 旗标优先于 config.login.mode)
+    if login_mode:
+        config.login.mode = login_mode  # pydantic validator 校验 auto|manual
+    # manual 模式必须有头(用户要在浏览器窗口手动登录)
+    if config.login.mode == "manual":
+        config.browser.headless = False
+
     # Display startup information
     console.print(Panel.fit(
         f"[bold green]JobsDB Resume Assistant[/bold green]\n"
         f"Account: [cyan]{resolved.alias}[/cyan] ({AccountRegistry.mask_email(resolved.email)})\n"
         f"Target: {config.jobsdb.homepage_url}\n"
         f"Max jobs: {max_jobs or config.scheduler.max_applies_per_session}\n"
-        f"Headless: {config.browser.headless}",
+        f"Headless: {config.browser.headless}\n"
+        f"Login mode: [yellow]{config.login.mode}[/yellow]"
+        + (" (manual 需在浏览器窗口登录)" if config.login.mode == "manual" else ""),
         title="Starting",
         border_style="green",
     ))

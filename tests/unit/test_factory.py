@@ -88,6 +88,35 @@ class TestDefaultFactory:
         alert = self.factory.create_alert_manager(alert_on_captcha=True)
         assert isinstance(alert, AlertManager)
 
+    def test_create_login_handler_propagates_login_config(self):
+        """create_login_handler 把 login_config 透传给 LoginHandler(激活 manual/auto)"""
+        from config.settings import JobsDBConfig, LoginConfig
+        from src.browser.fake.fake_page import FakePageController
+        from src.jobsdb.login import LoginHandler
+
+        page = FakePageController()
+        config = JobsDBConfig()
+        login_config = LoginConfig(mode="manual", manual_wait_minutes=5, poll_interval_seconds=2)
+
+        handler = self.factory.create_login_handler(
+            page, config, human=None, account=None, login_config=login_config
+        )
+        assert isinstance(handler, LoginHandler)
+        assert handler.login_config is login_config
+        assert handler.login_config.mode == "manual"
+
+    def test_create_login_handler_defaults_to_auto_without_login_config(self):
+        """不传 login_config → LoginHandler 默认 auto(向后兼容)"""
+        from config.settings import JobsDBConfig
+        from src.browser.fake.fake_page import FakePageController
+        from src.jobsdb.login import LoginHandler
+
+        handler = self.factory.create_login_handler(
+            FakePageController(), JobsDBConfig(), human=None, account=None
+        )
+        assert isinstance(handler, LoginHandler)
+        assert handler.login_config.mode == "auto"
+
 
 # ═══════════════════════════════════════════════════════
 #  FakeFactory(生产内存假组件,供 Orchestrator 单测)

@@ -36,7 +36,7 @@ class ComponentFactory(Protocol):
     def create_alert_manager(self, alert_on_captcha: bool = True) -> AlertManager: ...
     def create_stats(self, db: Database) -> StatsAggregator: ...
     def create_login_handler(self, page: PageController, config: JobsDBConfig,
-                             human, account) -> LoginHandler: ...
+                             human, account, login_config=None) -> LoginHandler: ...
     def create_scraper(self, page: PageController, human) -> HomepageScraper: ...
 
 
@@ -82,8 +82,9 @@ class DefaultFactory:
         return StatsAggregator(db)
 
     def create_login_handler(self, page: PageController, config: JobsDBConfig,
-                             human, account) -> LoginHandler:
-        return LoginHandler(page, config, human, account)
+                             human, account, login_config=None) -> LoginHandler:
+        # login_config 默认 None → LoginHandler 内部退化为 LoginConfig()(auto),向后兼容
+        return LoginHandler(page, config, human, account, login_config=login_config)
 
     def create_scraper(self, page: PageController, human) -> HomepageScraper:
         return HomepageScraper(page, human)
@@ -133,8 +134,9 @@ class FakeFactory:
         return StatsAggregator(db)
 
     def create_login_handler(self, page: PageController, config: JobsDBConfig,
-                             human, account) -> LoginHandler:
-        return LoginHandler(page, config, human, account)
+                             human, account, login_config=None) -> LoginHandler:
+        # login_config 默认 None → LoginHandler 内部退化为 LoginConfig()(auto),向后兼容
+        return LoginHandler(page, config, human, account, login_config=login_config)
 
     def create_scraper(self, page: PageController, human) -> HomepageScraper:
         return HomepageScraper(page, human)

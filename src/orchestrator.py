@@ -159,8 +159,10 @@ class Orchestrator:
         )
 
         # Initialize the JobsDB handler — 走工厂
+        # 传 config.login(LoginConfig):激活 manual/auto 模式切换
         self.login_handler = self.factory.create_login_handler(
-            self.page_controller, self.config.jobsdb, self.human, self.account
+            self.page_controller, self.config.jobsdb, self.human, self.account,
+            login_config=self.config.login,
         )
         self.scraper = self.factory.create_scraper(self.page_controller, self.human)
 
