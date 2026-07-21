@@ -6,6 +6,8 @@ v1.0 _dismiss_popups 的逻辑:逐个尝试关闭 cookie 通知等弹窗。
 
 import asyncio
 
+from loguru import logger
+
 from src.browser.ports.page_controller import PageController
 from src.jobsdb.selectors import COOKIE_BANNER, NOTIFICATION_PROMPT
 
@@ -20,12 +22,16 @@ _POPUP_SELECTORS = [
 
 
 async def run(page: PageController) -> None:
-    """关闭可能的弹窗(v1.0 _dismiss_popups)"""
+    """关闭可能的弹窗(v1.0 _dismiss_popups)
+
+    v2.0: `except Exception: pass` → 捕获具体异常 + debug 日志
+    (三分法 B 类:降级 — 弹窗是可选的,关闭失败不阻断主流程)。
+    """
     for selector in _POPUP_SELECTORS:
         try:
             popup = await page.query_selector(selector)
             if popup:
                 await popup.click()
                 await asyncio.sleep(0.5)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Popup dismiss failed for {selector!r}: {e}")

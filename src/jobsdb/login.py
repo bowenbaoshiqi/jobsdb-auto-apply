@@ -83,8 +83,9 @@ class LoginHandler:
                 if cookie_accept:
                     await cookie_accept.click()
                     await asyncio.sleep(1)
-            except Exception:
-                pass
+            except Exception as e:
+                # cookie banner 关闭失败不阻断登录检查(三分法 B 类:降级)
+                logger.debug(f"Cookie banner dismiss failed: {e}")
 
             # 尝试查找用户头像/用户名元素
             avatar = await self.page.query_selector(USER_AVATAR)
@@ -220,8 +221,10 @@ class LoginHandler:
             logger.debug("Waiting for navigation after login...")
             try:
                 await self.page.wait_for_load_state("networkidle", timeout=15000)
-            except Exception:
-                pass  # 超时也没关系，继续检查登录状态
+            except Exception as e:
+                # 超时也没关系,继续检查登录状态(三分法 B 类:降级)
+                # 注:v2.0 收紧为只容忍超时类异常;其他异常应上抛
+                logger.debug(f"Login load state wait failed (continuing): {e}")
 
             await asyncio.sleep(3)  # 给页面点时间渲染
 
@@ -264,13 +267,17 @@ class LoginHandler:
         return False
 
     async def _get_login_error(self) -> Optional[str]:
-        """获取登录错误信息"""
+        """获取登录错误信息
+
+        v2.0: `except Exception: pass` → 捕获 + debug 日志
+        (三分法 B 类:降级 — 错误信息取不到返回 None,不阻断登录流程)。
+        """
         try:
             error_elem = await self.page.query_selector(LOGIN_ERROR_MESSAGE)
             if error_elem:
                 return await error_elem.text_content()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get login error message: {e}")
         return None
 
     async def handle_session_refresh(self) -> bool:

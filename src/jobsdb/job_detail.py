@@ -150,11 +150,15 @@ class JobDetailPage:
         return info
 
     async def _get_job_title(self) -> Optional[str]:
-        """获取职位标题"""
+        """获取职位标题
+
+        v2.0: `except Exception: pass` → 捕获 + debug 日志
+        (三分法 B 类:降级 — 标题取不到返回 None,不阻断)。
+        """
         try:
             title_el = await self.page.query_selector(JOB_DETAIL_TITLE)
             if title_el:
                 return await title_el.text_content()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get job title: {e}")
         return None

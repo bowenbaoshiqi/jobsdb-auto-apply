@@ -9,6 +9,8 @@ detectors — apply 流程的纯查询逻辑(无副作用)
 
 from typing import Optional
 
+from loguru import logger
+
 from src.browser.ports.page_controller import PageController
 from src.jobsdb.apply.step_base import ApplyStep
 from src.jobsdb.selectors import (
@@ -44,42 +46,46 @@ LOGIN_COOKIE_NAMES = (
 
 
 async def check_captcha(page: PageController) -> bool:
-    """检查是否有 CAPTCHA(v1.0 _check_captcha)"""
-    try:
-        captcha = await page.query_selector(RECAPTCHA_IFRAME)
-        if captcha:
-            return True
+    """检查是否有 CAPTCHA(v1.0 _check_captcha)
 
-        hcaptcha = await page.query_selector(
-            'iframe[src*="hcaptcha"], .h-captcha'
-        )
-        if hcaptcha:
-            return True
+    v2.0: 移除 `except Exception: return False` — 查询异常不应静默,
+    让其上抛由 apply() 统一处理(三分法 C 类:上抛)。
+    正常"无验证码"路径(无异常)仍返回 False。
+    """
+    captcha = await page.query_selector(RECAPTCHA_IFRAME)
+    if captcha:
+        return True
 
-        return False
-    except Exception:
-        return False
+    hcaptcha = await page.query_selector(
+        'iframe[src*="hcaptcha"], .h-captcha'
+    )
+    if hcaptcha:
+        return True
+
+    return False
 
 
 async def check_success(page: PageController) -> bool:
-    """检查是否提交成功(v1.0 _check_success)"""
-    try:
-        success = await page.query_selector(SUCCESS_MESSAGE)
-        if success:
-            return True
+    """检查是否提交成功(v1.0 _check_success)
 
-        success_modal = await page.query_selector(SUCCESS_MODAL)
-        if success_modal:
-            return True
+    v2.0: 移除 `except Exception: return False` — 成功检测失败不应静默,
+    让其上抛(三分法 C 类:上抛)。成功检测误判为 False 会导致重复提交,
+    必须让异常暴露而非吞掉。
+    """
+    success = await page.query_selector(SUCCESS_MESSAGE)
+    if success:
+        return True
 
-        # 检查页面文本
-        page_text = await page.text_content("body")
-        if page_text and any(indicator in page_text for indicator in _SUCCESS_INDICATORS):
-            return True
+    success_modal = await page.query_selector(SUCCESS_MODAL)
+    if success_modal:
+        return True
 
-        return False
-    except Exception:
-        return False
+    # 检查页面文本
+    page_text = await page.text_content("body")
+    if page_text and any(indicator in page_text for indicator in _SUCCESS_INDICATORS):
+        return True
+
+    return False
 
 
 async def detect_current_step(page: PageController) -> ApplyStep:
@@ -103,8 +109,9 @@ async def detect_current_step(page: PageController) -> ApplyStep:
                     return ApplyStep.COVER_LETTER
                 elif "review" in text_lower:
                     return ApplyStep.REVIEW
-        except Exception:
-            pass
+        except Exception as e:
+            # 指示器文本解析失败 → 降级到按表单元素判定(三分法 B 类:降级)
+            logger.debug(f"Step indicator parse failed, falling back: {e}")
 
     # 按表单元素判定
     if await page.query_selector(RESUME_SELECTION):
@@ -143,7 +150,11 @@ async def detect_current_step(page: PageController) -> ApplyStep:
 
 
 async def get_error_message(page: PageController) -> Optional[str]:
-    """获取错误信息(v1.0 _get_error_message)"""
+    """获取错误信息(v1.0 _get_error_message)
+
+    v2.0: `except Exception: pass` → 捕获具体异常 + debug 日志(三分法 B 类:降级)。
+    错误信息是诊断用,取不到返回 None 不影响主流程。
+    """
     try:
         error = await page.query_selector(ERROR_MESSAGE)
         if error:
@@ -154,6 +165,6 @@ async def get_error_message(page: PageController) -> Optional[str]:
         if validation:
             text = await validation.text_content()
             return text.strip() if text else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to get error message: {e}")
     return None
