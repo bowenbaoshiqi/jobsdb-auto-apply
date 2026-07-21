@@ -28,6 +28,19 @@ wheels/
 # 数据目录（运行时数据：浏览器 profile、cookies、数据库、截图、日志）
 data/
 
+# 调试产物（防止误写到项目根目录;data/ 内的已被 data/ 覆盖）
+debug_*.html
+debug_*.png
+apply_page_*.html
+apply_page_*.png
+job_detail_*.html
+jobsdb_page.html
+jobsdb_screenshot.png
+review_page_debug.png
+
+# 临时验证脚本（手动登录已收编为 --login-mode manual 正式能力,禁止再建 run_v2_apply*.py）
+run_v2_apply*.py
+
 # 账户凭证（包含真实账号密码，永远不上传整个目录，仅保留示例文件）
 accounts/*
 !accounts/.gitkeep
