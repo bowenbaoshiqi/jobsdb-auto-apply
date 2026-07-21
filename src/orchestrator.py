@@ -5,7 +5,6 @@ Coordinate all modules to complete the end-to-end job submission process.
 """
 
 import asyncio
-import uuid
 from typing import List, Optional
 
 from playwright.async_api import Page
@@ -13,17 +12,14 @@ from loguru import logger
 
 from config.settings import AppConfig, get_config
 from src.accounts.registry import Account
-from src.browser.engine import BrowserEngine
+from src.browser.ports.browser_port import BrowserPort
 from src.browser.ports.page_controller import PageController
-from src.browser.playwright_page_controller import PlaywrightPageController
+from src.factory import ComponentFactory, DefaultFactory
 from src.jobsdb.apply.flow import ApplyFlow
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.job_detail import JobDetailPage
 from src.jobsdb.login import LoginHandler
-from src.monitor.tracker import AlertManager, ApplicationTracker, StatsAggregator
-from src.scheduler.queue import ApplyQueue, RateLimiter, TimingOptimizer
 from src.simulation.behavior import HumanSimulator
-from src.storage.database import Database
 from src.storage.models import ApplyResult, ApplyStatus, JobListing, SessionStatus
 from src.utils.screenshot import capture_screenshot, generate_session_id
 
@@ -41,34 +37,38 @@ class Orchestrator:
 
     def __init__(self, config: Optional[AppConfig] = None,
                  account: Optional[Account] = None,
-                 max_jobs: Optional[int] = None):
+                 max_jobs: Optional[int] = None,
+                 factory: Optional[ComponentFactory] = None):
         self.config = config or get_config()
         self.account = account or Account(alias="default", email="", password="")
         self.max_jobs = max_jobs or self.config.scheduler.max_applies_per_session
+        # 工厂注入:默认真实(DefaultFactory),测试可传 FakeFactory
+        self.factory: ComponentFactory = factory or DefaultFactory(self.config)
 
-        # Core modules
-        self.browser: Optional[BrowserEngine] = None
+        # Core modules(浏览器延迟创建,沿用 v1.0 时机)
+        self.browser: Optional[BrowserPort] = None
         self.page: Optional[Page] = None
         self.page_controller: Optional[PageController] = None
         self.human: Optional[HumanSimulator] = None
 
-        # Data storage (带账户隔离)
-        self.db = Database(self.config.storage.database_path)
-        self.db.set_account(self.account.alias)
+        # Data storage (带账户隔离)— 走工厂
+        self.db = self.factory.create_database(
+            self.config.storage.database_path, self.account.alias
+        )
 
-        # JobsDB interaction
+        # JobsDB interaction(延迟创建,需要 page)
         self.login_handler: Optional[LoginHandler] = None
         self.scraper: Optional[HomepageScraper] = None
 
-        # Scheduler
-        self.queue_manager = ApplyQueue(self.db, self.config.scheduler)
-        self.rate_limiter = RateLimiter(self.config.scheduler, self.db)
-        self.timing_optimizer = TimingOptimizer(self.config.scheduler)
+        # Scheduler — 走工厂
+        self.queue_manager = self.factory.create_queue_manager(self.db, self.config.scheduler)
+        self.rate_limiter = self.factory.create_rate_limiter(self.config.scheduler, self.db)
+        self.timing_optimizer = self.factory.create_timing_optimizer(self.config.scheduler)
 
-        # Monitor
-        self.tracker = ApplicationTracker(self.db)
-        self.alert = AlertManager(self.config.monitoring.alert_on_captcha)
-        self.stats = StatsAggregator(self.db)
+        # Monitor — 走工厂
+        self.tracker = self.factory.create_tracker(self.db)
+        self.alert = self.factory.create_alert_manager(self.config.monitoring.alert_on_captcha)
+        self.stats = self.factory.create_stats(self.db)
 
         # State
         self.session_id: Optional[str] = None
@@ -124,13 +124,14 @@ class Orchestrator:
     async def _init_browser(self) -> None:
         """Initialize the browser"""
         logger.info(f"Initializing browser for account [{self.account.alias}]...")
-        self.browser = BrowserEngine(
-            self.config.browser,
-            account_alias=self.account.alias,
-        )
-        self.page = await self.browser.start()
-        # jobsdb/* 依赖 PageController 接口;HumanSimulator 仍需原始 Page(mouse/viewport)
-        self.page_controller = PlaywrightPageController(self.page)
+        # 走工厂:DefaultFactory → PlaywrightBrowser,FakeFactory → FakeBrowser
+        self.browser = self.factory.create_browser(self.account.alias)
+        self.page_controller = await self.browser.start()
+
+        # HumanSimulator 仍需原始 Playwright Page(mouse/viewport,超出 v2.0 解耦范围)
+        # PlaywrightPageController(工厂产出)暴露 raw_page;FakeBrowser 的 page 无此属性时降级
+        raw_page = getattr(self.page_controller, "raw_page", None)
+        self.page = raw_page if raw_page is not None else self.page_controller
 
         # Initialize the human behavior simulator
         self.human = HumanSimulator(
@@ -141,11 +142,11 @@ class Orchestrator:
             delay_variance_ms=self.config.simulation.typing_delay_variance_ms,
         )
 
-        # Initialize the JobsDB handler
-        self.login_handler = LoginHandler(
+        # Initialize the JobsDB handler — 走工厂
+        self.login_handler = self.factory.create_login_handler(
             self.page_controller, self.config.jobsdb, self.human, self.account
         )
-        self.scraper = HomepageScraper(self.page_controller, self.human)
+        self.scraper = self.factory.create_scraper(self.page_controller, self.human)
 
     async def _ensure_login(self) -> bool:
         """Ensure login status"""
@@ -159,8 +160,8 @@ class Orchestrator:
         """Grab positions from the homepage"""
         logger.info("Navigating to homepage to scrape jobs...")
 
-        # Navigate to the homepage
-        await self.browser.goto(self.config.jobsdb.homepage_url)
+        # Navigate to the homepage(走 PageController 接口)
+        await self.page_controller.goto(self.config.jobsdb.homepage_url)
         await asyncio.sleep(3)  # Wait for dynamic content to load
 
         # Grab positions

@@ -7,12 +7,13 @@ jobsdb/* 和 simulation/* 不直接依赖 BrowserEngine,而是依赖此接口。
 v2.0 抽象层:运行时多态(Protocol 结构子类型),类型层不耦合具体实现。
 """
 
-from typing import TYPE_CHECKING, Optional, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from src.browser.ports.page_controller import PageController
 
 
+@runtime_checkable
 class BrowserPort(Protocol):
     """浏览器抽象接口。"""
 
