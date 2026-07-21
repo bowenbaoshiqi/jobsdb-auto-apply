@@ -5,8 +5,6 @@ TC-08, TC-09: 数据库操作测试
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.storage.models import (

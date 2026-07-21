@@ -29,12 +29,12 @@ NOTIFICATION_NO = 'button:has-text("Not now")'
 
 # 登录页
 LOGIN_LINK = 'a[href*="login"], button:has-text("Sign in")'
-LOGIN_EMAIL_INPUT = 'input[type="email"], input[name="email"], input[data-automation="login-email"], input[placeholder*="Email"]'
-LOGIN_PASSWORD_INPUT = 'input[type="password"], input[name="password"], input[data-automation="login-password"]'
+LOGIN_EMAIL_INPUT = 'input[type="email"], input[name="email"], input[data-automation="login-email"], input[placeholder*="Email"]'  # noqa: E501
+LOGIN_PASSWORD_INPUT = 'input[type="password"], input[name="password"], input[data-automation="login-password"]'  # noqa: E501
 LOGIN_SUBMIT_BUTTON = 'button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")'
 
 # 登录后标识
-USER_AVATAR = '[data-automation="user-avatar"], [data-automation="account-menu"], img[alt*="profile"]'
+USER_AVATAR = '[data-automation="user-avatar"], [data-automation="account-menu"], img[alt*="profile"]'  # noqa: E501
 USER_NAME = '[data-automation="user-name"], [data-automation="user-greeting"]'
 LOGOUT_BUTTON = 'a[href*="logout"], button:has-text("Log out")'
 
@@ -47,7 +47,7 @@ REAUTH_REQUIRED = 'text=Please sign in again, text=Session expired'
 # =============================================================================
 
 # 推荐区域
-RECOMMENDED_JOBS_SECTION = 'section[data-automation="recommended-jobs"], [data-automation="job-list"]'
+RECOMMENDED_JOBS_SECTION = 'section[data-automation="recommended-jobs"], [data-automation="job-list"]'  # noqa: E501
 RECOMMENDED_JOBS_HEADER = 'h2:has-text("Recommended"), h2:has-text("Recommend")'
 
 # 职位卡片
@@ -95,7 +95,7 @@ ALL_APPLY_BUTTONS = [
 ]
 
 # 已申请标记
-ALREADY_APPLIED_BADGE = '[data-automation="applied-badge"], span:has-text("Applied"), span:has-text("已申请")'
+ALREADY_APPLIED_BADGE = '[data-automation="applied-badge"], span:has-text("Applied"), span:has-text("已申请")'  # noqa: E501
 
 # =============================================================================
 # 申请表单
@@ -122,10 +122,10 @@ QUESTION_SELECT = 'select[data-automation="question-select"]'
 
 # 求职信
 COVER_LETTER_SECTION = '[data-automation="cover-letter"]'
-COVER_LETTER_TEXTAREA = 'textarea[data-automation="cover-letter-text"], textarea[placeholder*="cover letter"]'
+COVER_LETTER_TEXTAREA = 'textarea[data-automation="cover-letter-text"], textarea[placeholder*="cover letter"]'  # noqa: E501
 
 # 提交按钮
-SUBMIT_APPLICATION_BUTTON = 'button[data-automation="submit-application"], button[type="submit"]:has-text("Submit")'
+SUBMIT_APPLICATION_BUTTON = 'button[data-automation="submit-application"], button[type="submit"]:has-text("Submit")'  # noqa: E501
 CONFIRM_SUBMIT_BUTTON = 'button:has-text("Confirm"), button:has-text("Submit application")'
 
 # 下一步
@@ -138,7 +138,7 @@ BACK_BUTTON = 'button[data-automation="back"], button:has-text("Back")'
 # =============================================================================
 
 # 成功确认
-SUCCESS_MESSAGE = '[data-automation="success-message"], div:has-text("Application submitted"), div:has-text("successfully submitted")'
+SUCCESS_MESSAGE = '[data-automation="success-message"], div:has-text("Application submitted"), div:has-text("successfully submitted")'  # noqa: E501
 SUCCESS_MODAL = '[data-automation="success-modal"], [role="dialog"]:has-text("success")'
 
 # 失败/错误
@@ -156,7 +156,7 @@ CLOSE_SUCCESS_MODAL = 'button[aria-label="Close"], [data-automation="close-succe
 RECAPTCHA_IFRAME = 'iframe[src*="recaptcha"], iframe[src*="google.com/recaptcha"]'
 HCAPTCHA_IFRAME = 'iframe[src*="hcaptcha"], iframe[src*="hcaptcha.com"]'
 CAPTCHA_CHALLENGE = '[data-automation="captcha"], .g-recaptcha, .h-captcha'
-VERIFY_HUMAN_PROMPT = 'text=verify you are human, text=prove you are not a robot, text=security check'
+VERIFY_HUMAN_PROMPT = 'text=verify you are human, text=prove you are not a robot, text=security check'  # noqa: E501
 
 # =============================================================================
 # 辅助选择器

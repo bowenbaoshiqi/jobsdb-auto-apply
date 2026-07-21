@@ -5,10 +5,8 @@
 JobsDB DOM 结构变化时才应更新这些值(届时同步更新本测试)。
 """
 
-import pytest
 
 from src.jobsdb import selectors
-
 
 # ═══════════════════════════════════════════════════════
 #  通用元素选择器

@@ -13,7 +13,6 @@ from enum import Enum
 from typing import Optional
 
 import numpy as np
-from loguru import logger
 
 
 class HumanActionType(str, Enum):
@@ -101,7 +100,7 @@ def randomize_session_timing(base_applies: int = 10) -> list:
     - 有时仔细读 JD 花更长时间
     """
     intervals = []
-    for i in range(base_applies - 1):
+    for _i in range(base_applies - 1):
         # 基础间隔 3-7 分钟
         base = random.uniform(180, 420)
 
@@ -123,6 +122,7 @@ def is_peak_hour(tz_str: str = "Asia/Hong_Kong") -> bool:
     检查当前是否是香港高峰时段
     """
     from datetime import datetime
+
     import pytz
 
     try:
@@ -132,19 +132,13 @@ def is_peak_hour(tz_str: str = "Asia/Hong_Kong") -> bool:
 
         # 排除高峰时段：9-11点，14-16点
         peak_periods = [(9, 11), (14, 16)]
-        for start, end in peak_periods:
-            if start <= hour < end:
-                return True
-        return False
+        return any(start <= hour < end for start, end in peak_periods)
     except Exception:
         # 如果 pytz 不可用，使用本地时间估算
         now = datetime.now()
         hour = now.hour
         peak_periods = [(9, 11), (14, 16)]
-        for start, end in peak_periods:
-            if start <= hour < end:
-                return True
-        return False
+        return any(start <= hour < end for start, end in peak_periods)
 
 
 def get_optimal_delay() -> float:

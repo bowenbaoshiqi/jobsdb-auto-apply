@@ -24,7 +24,6 @@ from src.jobsdb.homepage import HomepageScraper
 from src.simulation.behavior import HumanSimulator
 from src.utils.screenshot import capture_screenshot
 
-
 CHROME_PROFILE_DIR = "/Users/t91/Library/Application Support/Google/Chrome"
 
 
@@ -67,7 +66,7 @@ async def test_e2e_with_chrome_profile():
 
     # 复制一份 profile 到临时目录（避免损坏原始数据）
     temp_profile = "./data/chrome_profile_temp"
-    print(f"📁 复制 Chrome profile 到临时目录...")
+    print("📁 复制 Chrome profile 到临时目录...")
 
     try:
         if Path(temp_profile).exists():
@@ -136,7 +135,7 @@ async def test_e2e_with_chrome_profile():
                     is_logged_in = True
                     print(f"✅ 检测到登录状态: {selector}")
                     break
-            except:
+            except Exception:
                 pass
 
         if not is_logged_in:
@@ -179,7 +178,7 @@ async def test_e2e_with_chrome_profile():
             for i, job in enumerate(jobs[:15], 1):
                 title = (job.title[:32] + "...") if len(job.title) > 35 else job.title
                 company = (job.company[:17] + "...") if len(job.company) > 20 else job.company
-                location = (job.location[:12] + "...") if job.location and len(job.location) > 15 else (job.location or "")
+                location = (job.location[:12] + "...") if job.location and len(job.location) > 15 else (job.location or "")  # noqa: E501
                 print(f"{i:<4} {title:<35} {company:<20} {location:<15}")
             print("-" * 60)
 
@@ -211,8 +210,8 @@ async def test_e2e_with_chrome_profile():
         if temp_profile != chrome_profile and Path(temp_profile).exists():
             try:
                 shutil.rmtree(temp_profile)
-                print(f"✓ 临时 profile 已清理")
-            except:
+                print("✓ 临时 profile 已清理")
+            except Exception:
                 pass
 
 

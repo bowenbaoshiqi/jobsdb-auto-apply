@@ -28,7 +28,7 @@ class TestIntegrationStealth:
         page = browser_engine.current_page
 
         try:
-            await page.goto("https://bot.sannysoft.com", wait_until="domcontentloaded", timeout=30000)
+            await page.goto("https://bot.sannysoft.com", wait_until="domcontentloaded", timeout=30000)  # noqa: E501
             # 等待 JS 检测完成
             import asyncio
             await asyncio.sleep(3)
@@ -56,8 +56,9 @@ class TestIntegrationStealth:
         TC-17: Session 持久化 — cookies 和 localStorage 跨重启保留
         """
         import uuid
-        from src.browser.engine import BrowserEngine
+
         from config.settings import BrowserConfig
+        from src.browser.engine import BrowserEngine
 
         user_data_dir = tmp_path / f"browser_profile_test_{uuid.uuid4().hex[:8]}"
 
@@ -111,9 +112,10 @@ class TestLoginErrorHandling:
         TC-15: 没有配置 credentials 时应抛出 LoginError
         """
         from playwright.async_api import async_playwright
-        from src.jobsdb.login import LoginHandler
+
         from config.settings import JobsDBConfig
         from src.jobsdb.exceptions import LoginError
+        from src.jobsdb.login import LoginHandler
 
         config = JobsDBConfig(email=None, password=None)
 

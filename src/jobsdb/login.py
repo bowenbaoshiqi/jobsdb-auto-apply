@@ -10,7 +10,7 @@ from loguru import logger
 from config.settings import JobsDBConfig
 from src.accounts.registry import Account
 from src.browser.ports.page_controller import PageController
-from src.jobsdb.exceptions import LoginError, CaptchaDetectedError
+from src.jobsdb.exceptions import CaptchaDetectedError, LoginError
 from src.jobsdb.selectors import (
     LOGIN_EMAIL_INPUT,
     LOGIN_ERROR_MESSAGE,
@@ -67,7 +67,7 @@ class LoginHandler:
                 logger.info("Already logged in")
                 return True
             if attempt < 2:
-                logger.debug(f"Login check attempt {attempt+1} failed, waiting for page to render...")
+                logger.debug(f"Login check attempt {attempt+1} failed, waiting for page to render...")  # noqa: E501
                 await asyncio.sleep(3)
 
         # 需要登录
@@ -256,7 +256,7 @@ class LoginHandler:
         except Exception as e:
             logger.exception(f"Unexpected error during login: {e}")
             screenshot = await capture_screenshot(self.page, "login_error")
-            raise LoginError(f"Login failed with unexpected error: {e}")
+            raise LoginError(f"Login failed with unexpected error: {e}") from e
 
     async def _check_for_captcha(self) -> bool:
         """检查页面是否有验证码"""

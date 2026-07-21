@@ -59,6 +59,8 @@ target-version = ['py39']
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
 ignore = []
 
@@ -77,9 +79,11 @@ addopts = "-m 'not e2e'"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["*/tests/*", "*/__pycache__/*"]
+# main.py 是 CLI 入口(@app.command 处理器 + rich console I/O),
+# 经手动/CLI 测试,不纳入单测覆盖率统计(其逻辑由被调模块覆盖)
+omit = ["*/tests/*", "*/__pycache__/*", "*/main.py"]
 
 [tool.coverage.report]
-# v2.0 阶段0-4: 暂不卡门槛(当前 ~39%,阶段5 补到 60% 后取消注释)
-# fail_under = 60
+# v2.0 阶段5: 起步门槛 60%(后续逐步提至 80%)
+fail_under = 60
 show_missing = true

@@ -59,10 +59,7 @@ async def check_captcha(page: PageController) -> bool:
     hcaptcha = await page.query_selector(
         'iframe[src*="hcaptcha"], .h-captcha'
     )
-    if hcaptcha:
-        return True
-
-    return False
+    return bool(hcaptcha)
 
 
 async def check_success(page: PageController) -> bool:
@@ -82,10 +79,7 @@ async def check_success(page: PageController) -> bool:
 
     # 检查页面文本
     page_text = await page.text_content("body")
-    if page_text and any(indicator in page_text for indicator in _SUCCESS_INDICATORS):
-        return True
-
-    return False
+    return bool(page_text and any(indicator in page_text for indicator in _SUCCESS_INDICATORS))
 
 
 async def detect_current_step(page: PageController) -> ApplyStep:

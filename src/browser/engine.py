@@ -2,12 +2,11 @@
 浏览器引擎 — Playwright 生命周期管理和 Stealth 配置
 """
 
-import os
 from pathlib import Path
 from typing import Optional
 
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 from loguru import logger
+from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 
 from config.settings import BrowserConfig, get_config
 from src.browser.stealth import get_combined_script

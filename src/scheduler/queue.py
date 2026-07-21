@@ -5,7 +5,7 @@ Scheduling and control module
 import asyncio
 import random
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -21,7 +21,7 @@ class ApplyQueue:
         self.db = db
         self.config = config or get_config().scheduler
 
-    def build_queue(self, jobs: List[JobListing]) -> List[JobListing]:
+    def build_queue(self, jobs: list[JobListing]) -> list[JobListing]:
         """
         Build the application queue, filtering out already applied positions
 
@@ -45,7 +45,7 @@ class ApplyQueue:
         # Limit the number per session
         return prioritized[:self.config.max_applies_per_session]
 
-    def _prioritize(self, jobs: List[JobListing]) -> List[JobListing]:
+    def _prioritize(self, jobs: list[JobListing]) -> list[JobListing]:
         """
         Sort jobs by priority
 

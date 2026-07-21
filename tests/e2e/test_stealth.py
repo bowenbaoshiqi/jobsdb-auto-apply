@@ -2,7 +2,6 @@
 TC-01, TC-02: Stealth 反指纹测试
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -103,5 +102,6 @@ class TestStealthPatches:
         """
         result = await mock_page.evaluate("() => navigator.languages")
         assert result and len(result) > 0, "navigator.languages should not be empty"
-        assert any("zh" in str(lang) for lang in result) or any("en" in str(lang) for lang in result), \
-            f"Should contain zh or en languages, got: {result}"
+        assert any("zh" in str(lang) for lang in result) or any(
+            "en" in str(lang) for lang in result
+        ), f"Should contain zh or en languages, got: {result}"

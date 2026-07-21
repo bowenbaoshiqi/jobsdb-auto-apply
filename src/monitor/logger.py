@@ -31,7 +31,7 @@ def configure_logger(log_level: str = "INFO",
     logger.add(
         log_file,
         level="DEBUG",  # 文件记录更详细
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",  # noqa: E501
         rotation=log_rotation,
         retention=log_retention,
         encoding="utf-8",

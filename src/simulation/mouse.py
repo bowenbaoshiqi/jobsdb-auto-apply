@@ -7,11 +7,11 @@
 
 import asyncio
 import random
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
-from playwright.async_api import ElementHandle, Page
 from loguru import logger
+from playwright.async_api import ElementHandle, Page
 
 
 class MouseSimulator:
@@ -61,7 +61,7 @@ class MouseSimulator:
             # 降级：直接跳到目标位置
             await element.hover()
 
-    async def move_to(self, target: Tuple[float, float]) -> None:
+    async def move_to(self, target: tuple[float, float]) -> None:
         """
         从当前位置自然移动到目标位置
 
@@ -150,8 +150,8 @@ class MouseSimulator:
         await self.move_to(target)
 
     def _generate_bezier_path(self,
-                              start: Tuple[float, float],
-                              end: Tuple[float, float],
+                              start: tuple[float, float],
+                              end: tuple[float, float],
                               num_points: int = 25) -> list:
         """
         生成三次贝塞尔曲线路径
@@ -209,10 +209,10 @@ class MouseSimulator:
 
     @staticmethod
     def _cubic_bezier(t: float,
-                      p0: Tuple[float, float],
-                      p1: Tuple[float, float],
-                      p2: Tuple[float, float],
-                      p3: Tuple[float, float]) -> Tuple[float, float]:
+                      p0: tuple[float, float],
+                      p1: tuple[float, float],
+                      p2: tuple[float, float],
+                      p3: tuple[float, float]) -> tuple[float, float]:
         """三次贝塞尔曲线公式"""
         mt = 1 - t
         x = (mt**3 * p0[0] +

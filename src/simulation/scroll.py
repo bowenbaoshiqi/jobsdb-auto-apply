@@ -13,8 +13,8 @@ import asyncio
 import random
 from typing import Optional
 
-from playwright.async_api import ElementHandle, Page
 from loguru import logger
+from playwright.async_api import ElementHandle, Page
 
 
 class ScrollSimulator:

@@ -12,7 +12,6 @@ FakeBrowser — BrowserPort 接口的纯内存假实现
 from typing import Optional
 
 from src.browser.fake.fake_page import FakePageController
-from src.browser.ports.browser_port import BrowserPort
 from src.browser.ports.page_controller import PageController
 
 

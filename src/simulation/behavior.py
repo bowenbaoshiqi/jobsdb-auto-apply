@@ -6,10 +6,10 @@
 """
 
 import asyncio
+import contextlib
 import random
 
 from playwright.async_api import Page
-from loguru import logger
 
 from src.simulation.mouse import MouseSimulator
 from src.simulation.scroll import ScrollSimulator
@@ -206,8 +206,6 @@ class HumanSimulator:
 
         在关键操作前（如点击 Apply 前）确认页面已完全加载
         """
-        try:
+        # 超时则忽略(三分法 B 类:降级)
+        with contextlib.suppress(Exception):
             await self.page.wait_for_load_state("networkidle", timeout=timeout)
-        except Exception:
-            # 超时则忽略
-            pass

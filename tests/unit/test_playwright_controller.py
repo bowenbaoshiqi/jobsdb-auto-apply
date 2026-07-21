@@ -12,7 +12,6 @@ import pytest
 from src.browser.playwright_browser import PlaywrightBrowser
 from src.browser.playwright_page_controller import PlaywrightPageController
 
-
 # ═══════════════════════════════════════════════════════
 #  PlaywrightPageController 委托逻辑
 # ═══════════════════════════════════════════════════════
@@ -157,7 +156,6 @@ class TestPlaywrightBrowser:
     @pytest.mark.asyncio
     async def test_start_returns_page_controller(self):
         """start 返回 PlaywrightPageController(非裸 Page)"""
-        from src.browser.playwright_browser import PlaywrightBrowser
 
         browser = PlaywrightBrowser.__new__(PlaywrightBrowser)
         browser._engine = AsyncMock()
@@ -174,14 +172,12 @@ class TestPlaywrightBrowser:
 
     @pytest.mark.asyncio
     async def test_current_page_none_when_not_started(self):
-        from src.browser.playwright_browser import PlaywrightBrowser
         browser = PlaywrightBrowser.__new__(PlaywrightBrowser)
         browser._page_controller = None
         assert browser.current_page is None
 
     @pytest.mark.asyncio
     async def test_stop_clears_controller(self):
-        from src.browser.playwright_browser import PlaywrightBrowser
         browser = PlaywrightBrowser.__new__(PlaywrightBrowser)
         browser._engine = AsyncMock()
         browser._page_controller = MagicMock()

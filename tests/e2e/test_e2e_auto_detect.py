@@ -37,15 +37,12 @@ async def is_logged_in(page) -> bool:
             elem = await page.query_selector(selector)
             if elem and await elem.is_visible():
                 return True
-        except:
+        except Exception:
             pass
 
     # 方法2: URL 不包含 login
     url = page.url
-    if "login" not in url.lower() and "seek.com" not in url.lower():
-        return True
-
-    return False
+    return bool("login" not in url.lower() and "seek.com" not in url.lower())
 
 
 async def auto_login_and_save():

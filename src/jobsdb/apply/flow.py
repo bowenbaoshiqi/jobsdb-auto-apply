@@ -13,7 +13,7 @@ v2.0: 从 v1.0 apply_flow.py(543 行) 拆出的主循环。只含:
 import asyncio
 import random
 import time
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -38,7 +38,6 @@ from src.simulation.behavior import HumanSimulator
 from src.storage.models import ApplyResult, ApplyStatus
 from src.utils.screenshot import capture_screenshot
 
-
 # 步骤 → handler 映射(v1.0 _handle_step 的 handlers dict 等价)
 _STEP_HANDLERS = {
     ApplyStep.RESUME_SELECTION: ResumeStep(),
@@ -48,7 +47,7 @@ _STEP_HANDLERS = {
 }
 
 
-def default_handler_chain() -> List[StepHandler]:
+def default_handler_chain() -> list[StepHandler]:
     """默认步骤处理器链(按优先级)"""
     return [
         SubmitStep(),       # SUBMITTED 检测优先
@@ -64,7 +63,7 @@ class ApplyFlow:
 
     def __init__(self, page: PageController, human: Optional[HumanSimulator] = None,
                  max_steps: int = 10,
-                 handlers: Optional[List[StepHandler]] = None):
+                 handlers: Optional[list[StepHandler]] = None):
         self.page = page
         self.human = human
         self.max_steps = max_steps

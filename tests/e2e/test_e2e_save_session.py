@@ -106,14 +106,14 @@ async def manual_login_and_save_session():
         is_logged_in = False
 
         # 方法1: 检查 profile 链接
-        for selector in ['a[href*="profile"]', '[data-automation="user-avatar"]', 'img[alt*="profile"]']:
+        for selector in ['a[href*="profile"]', '[data-automation="user-avatar"]', 'img[alt*="profile"]']:  # noqa: E501
             try:
                 elem = await page.query_selector(selector)
                 if elem and await elem.is_visible():
                     is_logged_in = True
                     print(f"✅ 检测到登录元素: {selector}")
                     break
-            except:
+            except Exception:
                 pass
 
         # 方法2: URL 检查
@@ -230,14 +230,14 @@ async def run_with_saved_session():
 
         # 加载 cookies
         if engine.context:
-            with open(cookies_path, "r", encoding="utf-8") as f:
+            with open(cookies_path, encoding="utf-8") as f:
                 cookies = json.load(f)
             await engine.context.add_cookies(cookies)
             print(f"✓ 已加载 {len(cookies)} 个 cookies")
 
         # 加载 localStorage
         if local_path.exists():
-            with open(local_path, "r", encoding="utf-8") as f:
+            with open(local_path, encoding="utf-8") as f:
                 local_data = json.load(f)
             if local_data and local_data != "{}":
                 await page.goto("about:blank")
@@ -263,9 +263,9 @@ async def run_with_saved_session():
                 elem = await page.query_selector(selector)
                 if elem and await elem.is_visible():
                     is_logged_in = True
-                    print(f"✅ Session 有效，已登录")
+                    print("✅ Session 有效，已登录")
                     break
-            except:
+            except Exception:
                 pass
 
         if not is_logged_in:

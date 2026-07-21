@@ -47,7 +47,7 @@ class TestApplyFlowWithFakePage:
     async def test_check_captcha_directly_with_fake(self):
         """直接调 check_captcha,验证 FakePageController 驱动 jobsdb 内部方法"""
         page = FakePageController()
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
 
         # 未预设 → False
         assert await check_captcha(page) is False
@@ -60,7 +60,7 @@ class TestApplyFlowWithFakePage:
     async def test_check_success_with_fake_body_text(self):
         """check_success 的文本匹配用 FakePageController.text_content('body') 驱动"""
         page = FakePageController()
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
 
         # 未预设 body 文本 → False
         assert await check_success(page) is False

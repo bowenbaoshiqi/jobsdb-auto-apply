@@ -2,8 +2,6 @@
 TC-07, TC-12: 时序 + ApplyFlow 状态机测试
 """
 
-import asyncio
-import re
 import sys
 from pathlib import Path
 
@@ -12,11 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.simulation.timing import (
-    ACTION_TIMING,
     HumanActionType,
-    get_optimal_delay,
     human_delay,
-    is_peak_hour,
     randomize_session_timing,
 )
 
@@ -109,10 +104,10 @@ class TestApplyFlowStateMachine:
             await page.set_content(html_content)
 
             # 创建 ApplyFlow 实例（不需要 human simulator）
-            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
             from src.jobsdb.apply.detectors import detect_current_step
+            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
 
-            flow = ApplyFlow(page=page, human=None)
+            ApplyFlow(page=page, human=None)
             step = await detect_current_step(page)
 
             assert step == ApplyStep.RESUME_SELECTION, \
@@ -138,10 +133,10 @@ class TestApplyFlowStateMachine:
             """
             await page.set_content(html_content)
 
-            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
             from src.jobsdb.apply.detectors import detect_current_step
+            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
 
-            flow = ApplyFlow(page=page, human=None)
+            ApplyFlow(page=page, human=None)
             step = await detect_current_step(page)
 
             assert step == ApplyStep.SUBMITTED, \
@@ -195,7 +190,7 @@ class TestApplyFlowStateMachine:
             await page.set_content(html_content)
 
             from src.jobsdb.apply.flow import ApplyFlow
-            from src.storage.models import ApplyResult, ApplyStatus
+            from src.storage.models import ApplyResult
 
             flow = ApplyFlow(page=page, human=None)
             result = await flow.apply(job_id="mock-123")

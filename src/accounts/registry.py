@@ -8,10 +8,8 @@
 """
 
 import json
-import re
-import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -64,7 +62,7 @@ class AccountRegistry:
 
     # ---- 读取 / 解析 ----
 
-    def list_all(self) -> List[Account]:
+    def list_all(self) -> list[Account]:
         """列出 accounts/ 下所有已注册账户"""
         accounts = []
         for json_file in sorted(self.accounts_dir.glob("*.json")):
@@ -109,7 +107,7 @@ class AccountRegistry:
                 logger.info(f"使用指定账户: {acc.alias}")
                 return acc
             raise ValueError(
-                f"未找到账户 '{preferred}'。请先用 `python -m src.main account add {preferred}` 添加"
+                f"未找到账户 '{preferred}'。请先用 `python -m src.main account add {preferred}` 添加"  # noqa: E501
             )
 
         # 向后兼容：.env 单账户

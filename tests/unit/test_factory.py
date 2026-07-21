@@ -5,12 +5,9 @@
 FakeFactory 生产内存假组件(供 Orchestrator 单测)。
 """
 
-import inspect
 
-import pytest
 
 from src.factory import ComponentFactory, DefaultFactory, FakeFactory
-
 
 # ═══════════════════════════════════════════════════════
 #  ComponentFactory 接口(10 个 create 方法)
@@ -65,8 +62,8 @@ class TestDefaultFactory:
         assert db.account_alias == "test_acct"
 
     def test_create_timing_optimizer(self):
-        from src.scheduler.queue import TimingOptimizer
         from config.settings import SchedulerConfig
+        from src.scheduler.queue import TimingOptimizer
         opt = self.factory.create_timing_optimizer(SchedulerConfig())
         assert isinstance(opt, TimingOptimizer)
 

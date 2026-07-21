@@ -89,11 +89,11 @@ class TestBezierPathProperties:
 class TestCubicBezier:
     def test_t_zero_returns_p0(self):
         """t=0 返回起点"""
-        assert MouseSimulator._cubic_bezier(0, (0, 0), (1, 1), (2, 2), (3, 3)) == pytest.approx((0, 0))
+        assert MouseSimulator._cubic_bezier(0, (0, 0), (1, 1), (2, 2), (3, 3)) == pytest.approx((0, 0))  # noqa: E501
 
     def test_t_one_returns_p3(self):
         """t=1 返回终点"""
-        assert MouseSimulator._cubic_bezier(1, (0, 0), (1, 1), (2, 2), (3, 3)) == pytest.approx((3, 3))
+        assert MouseSimulator._cubic_bezier(1, (0, 0), (1, 1), (2, 2), (3, 3)) == pytest.approx((3, 3))  # noqa: E501
 
     def test_t_half_midpoint(self):
         """t=0.5 的标准值(四点共线时在直线上)"""
@@ -121,7 +121,7 @@ class TestTypingDelay:
         typing = make_typing()
         text = "abcdefghijklmnopqrstuvwxyz"
         delays = [typing._calculate_delay(text[i], i, text) for i in range(len(text))]
-        assert len(set(round(d, 3) for d in delays)) > 5  # 至少 5 个不同值
+        assert len({round(d, 3) for d in delays}) > 5  # 至少 5 个不同值
 
     def test_delay_for_punctuation_has_extra_pause(self):
         """标点字符('.!?,')的延迟含额外停顿(>base_delay)"""

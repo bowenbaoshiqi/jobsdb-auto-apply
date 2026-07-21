@@ -19,6 +19,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import os
+
+from dotenv import load_dotenv
 from loguru import logger
 
 from config.settings import BrowserConfig, JobsDBConfig
@@ -28,8 +31,6 @@ from src.jobsdb.login import LoginHandler
 from src.simulation.behavior import HumanSimulator
 from src.storage.database import Database
 from src.utils.screenshot import capture_screenshot
-from dotenv import load_dotenv
-import os
 
 # 加载 .env
 load_dotenv()
@@ -162,7 +163,7 @@ async def test_e2e_login_and_scrape():
             db = Database("./data/jobsdb_e2e.db")
             for job in jobs:
                 db.save_job(job)
-            print(f"💾 已保存到数据库: data/jobsdb_e2e.db")
+            print("💾 已保存到数据库: data/jobsdb_e2e.db")
         else:
             print("⚠️ 没有找到推荐职位")
             print("可能原因：")

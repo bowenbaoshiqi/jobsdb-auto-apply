@@ -4,7 +4,7 @@ TC-10, TC-16: Rate Limiter + Scheduler 测试
 
 import asyncio
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pytest

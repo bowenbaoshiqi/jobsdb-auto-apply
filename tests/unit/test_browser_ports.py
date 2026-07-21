@@ -6,13 +6,9 @@
 """
 
 import inspect
-from typing import get_type_hints
-
-import pytest
 
 from src.browser.ports.browser_port import BrowserPort
 from src.browser.ports.page_controller import PageController
-
 
 # ═══════════════════════════════════════════════════════
 #  BrowserPort 接口

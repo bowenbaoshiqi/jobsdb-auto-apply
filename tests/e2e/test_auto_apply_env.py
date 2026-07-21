@@ -17,16 +17,6 @@ auto_apply.py 环境检查 & 工具函数 测试
     10. EnvCheckResult 格式化
 """
 
-# v2.0 待修复(阶段1):根 auto_apply.py 已合并到 scripts/auto_apply.py,
-# 且本测试引用的 APPLY_INTERVAL_SEC 等符号在重构中已移除/改名,
-# import 会失败。整个文件标记为 e2e 集成性质 + module-level skip,
-# 避免污染默认 pytest 收集。阶段1 重写为对 scripts.auto_apply 的有效测试。
-import pytest
-pytest.skip(
-    "v2.0: auto_apply 模块已迁移,本测试待阶段1重写",
-    allow_module_level=True,
-)
-
 import argparse
 import os
 import sys
@@ -34,25 +24,36 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+# v2.0 待修复(阶段1):根 auto_apply.py 已合并到 scripts/auto_apply.py,
+# 且本测试引用的 APPLY_INTERVAL_SEC 等符号在重构中已移除/改名,
+# import 会失败。整个文件标记为 e2e 集成性质 + module-level skip,
+# 避免污染默认 pytest 收集。阶段1 重写为对 scripts.auto_apply 的有效测试。
+
 # 项目路径
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from auto_apply import (
-    EnvCheckResult,
-    check_python_version,
-    check_python_dependencies,
-    check_playwright_browsers,
-    check_profile_directory,
-    clean_profile_locks,
-    kill_orphan_browsers,
-    ensure_data_directories,
-    run_environment_checks,
-    is_job_detail_page,
-    REQUIRED_PACKAGES,
-    APPLY_INTERVAL_SEC,
+pytest.skip(
+    "v2.0: auto_apply 模块已迁移,本测试待阶段1重写",
+    allow_module_level=True,
 )
 
+from auto_apply import (  # noqa: E402  (module-level skip 已生效,以下为死代码)
+    APPLY_INTERVAL_SEC,
+    REQUIRED_PACKAGES,
+    EnvCheckResult,
+    check_playwright_browsers,
+    check_profile_directory,
+    check_python_dependencies,
+    check_python_version,
+    clean_profile_locks,
+    ensure_data_directories,
+    is_job_detail_page,
+    kill_orphan_browsers,
+    run_environment_checks,
+)
 
 # ═══════════════════════════════════════════════════════
 #  EnvCheckResult
@@ -153,7 +154,7 @@ class TestCheckPlaywrightBrowsers:
 
     def test_no_browser_found(self):
         """模拟没有浏览器"""
-        with patch("pathlib.Path.exists", return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):  # noqa: SIM117 (死代码:module-level skip)
             with patch("pathlib.Path.is_dir", return_value=False):
                 result = check_playwright_browsers()
                 assert result.passed is False
@@ -410,8 +411,9 @@ class TestCookieStore:
 
     def test_is_fresh_old_file(self):
         """很旧的文件应视为过期"""
-        from src.storage.cookies import CookieStore
         import time
+
+        from src.storage.cookies import CookieStore
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "cookies.json"
             store = CookieStore(str(path))

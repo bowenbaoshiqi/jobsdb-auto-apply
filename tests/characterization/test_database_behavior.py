@@ -6,9 +6,7 @@
 重构 database.py 后这些测试仍绿 = 行为未变。
 """
 
-from datetime import datetime, timedelta
-
-import pytest
+from datetime import datetime
 
 from src.storage.models import (
     ApplyResult,
@@ -17,7 +15,6 @@ from src.storage.models import (
     SessionRecord,
     SessionStatus,
 )
-
 
 # ═══════════════════════════════════════════════════════
 #  Job 操作

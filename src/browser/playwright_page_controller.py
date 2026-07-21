@@ -9,8 +9,6 @@ from typing import Any, Optional
 
 from playwright.async_api import ElementHandle, Page
 
-from src.browser.ports.page_controller import PageController
-
 
 class PlaywrightPageController:
     """PageController 的 Playwright 实现。"""

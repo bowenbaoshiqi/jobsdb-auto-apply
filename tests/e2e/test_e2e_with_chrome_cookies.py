@@ -13,7 +13,6 @@
 """
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -147,7 +146,7 @@ async def test_e2e_with_chrome_session():
                     text = await elem.text_content() or ""
                     print(f"✅ 检测到登录状态元素: {selector[:40]}... ({text[:30]})")
                     break
-            except:
+            except Exception:
                 pass
 
         # 方法2: 检查页面文本

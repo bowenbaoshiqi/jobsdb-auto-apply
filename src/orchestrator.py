@@ -5,10 +5,10 @@ Coordinate all modules to complete the end-to-end job submission process.
 """
 
 import asyncio
-from typing import List, Optional
+from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 from config.settings import AppConfig, get_config
 from src.accounts.registry import Account
@@ -16,6 +16,12 @@ from src.browser.ports.browser_port import BrowserPort
 from src.browser.ports.page_controller import PageController
 from src.factory import ComponentFactory, DefaultFactory
 from src.jobsdb.apply.flow import ApplyFlow
+from src.jobsdb.exceptions import (
+    CaptchaDetectedError,
+    JobsDBError,
+    RateLimitError,
+    SessionExpiredError,
+)
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.job_detail import JobDetailPage
 from src.jobsdb.login import LoginHandler
@@ -116,7 +122,17 @@ class Orchestrator:
 
             # Phase 6: Generate the report
             return self._create_session_report()
-            logger.exception(f"Orchestrator error: {e}")
+        except CaptchaDetectedError as e:
+            logger.warning(f"CAPTCHA detected, manual resolution needed: {e}")
+            return self._create_error_report(f"captcha: {e}")
+        except SessionExpiredError as e:
+            logger.warning(f"Session expired: {e}")
+            return self._create_error_report(f"session_expired: {e}")
+        except RateLimitError as e:
+            logger.warning(f"Rate limited: {e}")
+            return self._create_error_report(f"rate_limited: {e}")
+        except JobsDBError as e:
+            logger.exception(f"JobsDB error: {e}")
             return self._create_error_report(str(e))
         finally:
             await self._cleanup()
@@ -156,7 +172,7 @@ class Orchestrator:
             logger.error(f"Login failed: {e}")
             return False
 
-    async def _scrape_jobs(self) -> List[JobListing]:
+    async def _scrape_jobs(self) -> list[JobListing]:
         """Grab positions from the homepage"""
         logger.info("Navigating to homepage to scrape jobs...")
 
@@ -173,7 +189,7 @@ class Orchestrator:
 
         return jobs
 
-    async def _process_queue(self, queue: List[JobListing]) -> None:
+    async def _process_queue(self, queue: list[JobListing]) -> None:
         """Process the application queue"""
         logger.info(f"Processing {len(queue)} jobs...")
 
@@ -184,7 +200,7 @@ class Orchestrator:
             await self.rate_limiter.wait_if_needed()
 
             # Check if suspected of being detected
-            if self.detection_suspected:
+            if self.detection_suspected:  # noqa: SIM102 (nested for comment clarity)
                 if self.consecutive_failures >= self.config.monitoring.suspicion_threshold:
                     logger.warning("Detection threshold reached, aborting session")
                     self.tracker.end_session(
@@ -220,7 +236,7 @@ class Orchestrator:
                 )
 
             # Random distraction behavior (simulate real human "daydreaming")
-            if i < len(queue) and not self.detection_suspected:
+            if i < len(queue) and not self.detection_suspected:  # noqa: SIM102
                 if asyncio.iscoroutinefunction(self.human.random_distractor):
                     await self.human.random_distractor()
 

@@ -15,8 +15,13 @@ import pytest
 from src.accounts.registry import Account
 from src.browser.fake.fake_page import FakeElement, FakePageController
 from src.factory import FakeFactory
+from src.jobsdb.exceptions import (
+    CaptchaDetectedError,
+    RateLimitError,
+    SessionExpiredError,
+)
 from src.orchestrator import Orchestrator
-from src.storage.models import ApplyResult, ApplyStatus, JobListing
+from src.storage.models import ApplyStatus, JobListing
 
 
 def make_account():
@@ -157,3 +162,62 @@ class TestOrchestratorCleanup:
         await orch._cleanup()
         # stop 后 current_page 应为 None(FakeBrowser.stop 清空)
         assert factory.last_browser.current_page is None
+
+
+# ═══════════════════════════════════════════════════════
+#  边界异常(spec 7.3: run() 按 JobsDBError 子类分流)
+# ═══════════════════════════════════════════════════════
+
+class TestOrchestratorBoundaryExceptions:
+    """run() 顶层只捕获 JobsDBError 子类,其他异常上抛(spec 7.3)"""
+
+    @pytest.mark.asyncio
+    async def test_captcha_error_produces_captcha_report(self, monkeypatch):
+        """CaptchaDetectedError → error report 含 'captcha'"""
+        factory = FakeFactory()
+        orch = Orchestrator(account=make_account(), factory=factory)
+
+        async def raise_captcha():
+            raise CaptchaDetectedError("captcha!")
+
+        monkeypatch.setattr(orch, "_init_browser", raise_captcha)
+        report = await orch.run()
+        assert "captcha" in report["error"]
+
+    @pytest.mark.asyncio
+    async def test_session_expired_produces_report(self, monkeypatch):
+        factory = FakeFactory()
+        orch = Orchestrator(account=make_account(), factory=factory)
+
+        async def raise_expired():
+            raise SessionExpiredError("expired")
+
+        monkeypatch.setattr(orch, "_init_browser", raise_expired)
+        report = await orch.run()
+        assert "session_expired" in report["error"]
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_produces_report(self, monkeypatch):
+        factory = FakeFactory()
+        orch = Orchestrator(account=make_account(), factory=factory)
+
+        async def raise_rate_limit():
+            raise RateLimitError("slow down")
+
+        monkeypatch.setattr(orch, "_init_browser", raise_rate_limit)
+        report = await orch.run()
+        assert "rate_limited" in report["error"]
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_propagates(self, monkeypatch):
+        """非 JobsDBError 异常应上抛(带 traceback),不被静默吞"""
+        factory = FakeFactory()
+        orch = Orchestrator(account=make_account(), factory=factory)
+
+        async def raise_unexpected():
+            raise RuntimeError("unexpected bug")
+
+        monkeypatch.setattr(orch, "_init_browser", raise_unexpected)
+        # 非 JobsDBError → 不被 run() 捕获,上抛
+        with pytest.raises(RuntimeError, match="unexpected bug"):
+            await orch.run()

@@ -17,7 +17,6 @@ from config.settings import BrowserConfig
 from src.browser.engine import BrowserEngine
 from src.jobsdb.homepage import HomepageScraper
 from src.simulation.behavior import HumanSimulator
-from src.utils.screenshot import capture_screenshot
 
 
 def extract_full_cookies():
@@ -86,7 +85,7 @@ async def test_e2e_full_cookies():
         return
 
     # 展示关键认证 cookies
-    auth_cookies = [c for c in cookies if "auth" in c["name"].lower() or "session" in c["name"].lower()]
+    auth_cookies = [c for c in cookies if "auth" in c["name"].lower() or "session" in c["name"].lower()]  # noqa: E501
     print(f"   其中认证相关: {len(auth_cookies)} 个")
     for c in auth_cookies[:3]:
         print(f"   - {c['name']}: {c['value'][:20]}... ({c['domain']})")
@@ -143,14 +142,14 @@ async def test_e2e_full_cookies():
         is_logged_in = False
 
         # 方法1: 查找个人资料相关元素
-        for selector in ['a[href*="profile"]', '[data-automation="user-avatar"]', 'img[alt*="profile"]']:
+        for selector in ['a[href*="profile"]', '[data-automation="user-avatar"]', 'img[alt*="profile"]']:  # noqa: E501
             try:
                 elem = await page.query_selector(selector)
                 if elem and await elem.is_visible():
                     is_logged_in = True
                     print(f"✅ 检测到登录元素: {selector}")
                     break
-            except:
+            except Exception:
                 pass
 
         # 方法2: 检查页面文本

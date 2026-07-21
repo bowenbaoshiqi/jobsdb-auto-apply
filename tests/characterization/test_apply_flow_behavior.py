@@ -13,8 +13,7 @@
 6. _check_captcha / _check_success 的判定逻辑
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -22,7 +21,6 @@ from src.jobsdb.apply.detectors import (
     check_captcha,
     check_success,
     detect_current_step,
-    get_error_message,
 )
 from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
 from src.storage.models import ApplyStatus
@@ -75,14 +73,14 @@ class TestCheckCaptcha:
         """RECAPTCHA_IFRAME 存在 → True"""
         from src.jobsdb.selectors import RECAPTCHA_IFRAME
         page = make_mock_page(selector_map={RECAPTCHA_IFRAME: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_captcha(page) is True
 
     @pytest.mark.asyncio
     async def test_no_captcha_returns_false(self):
         """无 captcha 元素 → False"""
         page = make_mock_page(selector_map={})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_captcha(page) is False
 
     @pytest.mark.asyncio
@@ -91,7 +89,7 @@ class TestCheckCaptcha:
         page = make_mock_page(selector_map={
             'iframe[src*="hcaptcha"], .h-captcha': make_mock_element()
         })
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_captcha(page) is True
 
 
@@ -105,7 +103,7 @@ class TestCheckSuccess:
         """SUCCESS_MESSAGE 元素存在 → True"""
         from src.jobsdb.selectors import SUCCESS_MESSAGE
         page = make_mock_page(selector_map={SUCCESS_MESSAGE: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_success(page) is True
 
     @pytest.mark.asyncio
@@ -113,28 +111,28 @@ class TestCheckSuccess:
         """SUCCESS_MODAL 元素存在 → True"""
         from src.jobsdb.selectors import SUCCESS_MODAL
         page = make_mock_page(selector_map={SUCCESS_MODAL: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_success(page) is True
 
     @pytest.mark.asyncio
     async def test_success_by_body_text_english(self):
         """body 含 "Application submitted" → True"""
         page = make_mock_page(body_text="Great! Application submitted successfully.")
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_success(page) is True
 
     @pytest.mark.asyncio
     async def test_success_by_body_text_chinese(self):
         """body 含 "申请已提交" → True"""
         page = make_mock_page(body_text="您的申请已提交")
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_success(page) is True
 
     @pytest.mark.asyncio
     async def test_no_success_indicators_returns_false(self):
         """无任何成功标识 → False"""
         page = make_mock_page(body_text="Some random page content")
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         assert await check_success(page) is False
 
 
@@ -148,7 +146,7 @@ class TestDetectCurrentStep:
         """已成功(有 SUCCESS_MESSAGE)→ SUBMITTED"""
         from src.jobsdb.selectors import SUCCESS_MESSAGE
         page = make_mock_page(selector_map={SUCCESS_MESSAGE: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         step = await detect_current_step(page)
         assert step == ApplyStep.SUBMITTED
 
@@ -157,7 +155,7 @@ class TestDetectCurrentStep:
         """有 RESUME_SELECTION 元素 → RESUME_SELECTION"""
         from src.jobsdb.selectors import RESUME_SELECTION
         page = make_mock_page(selector_map={RESUME_SELECTION: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         step = await detect_current_step(page)
         assert step == ApplyStep.RESUME_SELECTION
 
@@ -166,7 +164,7 @@ class TestDetectCurrentStep:
         """有 COVER_LETTER_SECTION → COVER_LETTER"""
         from src.jobsdb.selectors import COVER_LETTER_SECTION
         page = make_mock_page(selector_map={COVER_LETTER_SECTION: make_mock_element()})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         step = await detect_current_step(page)
         assert step == ApplyStep.COVER_LETTER
 
@@ -177,7 +175,7 @@ class TestDetectCurrentStep:
         page = make_mock_page(selector_map={
             SUBMIT_APPLICATION_BUTTON: make_mock_element(visible=True)
         })
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         step = await detect_current_step(page)
         assert step == ApplyStep.REVIEW
 
@@ -185,7 +183,7 @@ class TestDetectCurrentStep:
     async def test_detects_unknown_when_nothing_matches(self):
         """无任何识别元素 → UNKNOWN"""
         page = make_mock_page(selector_map={})
-        flow = ApplyFlow(page)
+        ApplyFlow(page)
         step = await detect_current_step(page)
         assert step == ApplyStep.UNKNOWN
 

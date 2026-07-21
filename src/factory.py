@@ -11,11 +11,11 @@ factory — ComponentFactory:生产 Orchestrator 所需组件的工厂
 
 from typing import Optional, Protocol, runtime_checkable
 
-from config.settings import AppConfig, BrowserConfig, JobsDBConfig, SchedulerConfig
+from config.settings import AppConfig, JobsDBConfig, SchedulerConfig
+from src.browser.fake.fake_browser import FakeBrowser
+from src.browser.playwright_browser import PlaywrightBrowser
 from src.browser.ports.browser_port import BrowserPort
 from src.browser.ports.page_controller import PageController
-from src.browser.playwright_browser import PlaywrightBrowser
-from src.browser.fake.fake_browser import FakeBrowser
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.login import LoginHandler
 from src.monitor.tracker import AlertManager, ApplicationTracker, StatsAggregator

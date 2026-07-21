@@ -2,7 +2,6 @@
 TC-Account: 账户注册表测试
 """
 
-import json
 import shutil
 
 import pytest

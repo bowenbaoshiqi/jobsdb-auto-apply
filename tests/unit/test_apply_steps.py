@@ -26,15 +26,12 @@ from src.jobsdb.apply.steps.popup_dismiss import run as dismiss_popups
 from src.jobsdb.selectors import (
     ADDITIONAL_QUESTIONS,
     COVER_LETTER_SECTION,
-    COVER_LETTER_TEXTAREA,
-    DEFAULT_RESUME_RADIO,
     NEXT_STEP_BUTTON,
     RECAPTCHA_IFRAME,
     RESUME_SELECTION,
     SUBMIT_APPLICATION_BUTTON,
     SUCCESS_MESSAGE,
 )
-
 
 # ═══════════════════════════════════════════════════════
 #  ResumeStep

@@ -8,21 +8,18 @@ v2.0: 本文件只保留纯数据 fixture,不依赖浏览器。
 
 import asyncio
 import pathlib
-import uuid
-from datetime import datetime
-
-import pytest
-import pytest_asyncio
 
 # 确保项目根目录在 path 中（便于 import）
 import sys
+
+import pytest
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
 from config.settings import AppConfig, BrowserConfig, StorageConfig
 from src.accounts.registry import Account
 from src.storage.database import Database
-from src.storage.models import JobListing, ApplyResult, ApplyStatus, SessionRecord, SessionStatus
-from src.browser.engine import BrowserEngine
+from src.storage.models import JobListing
 
 
 @pytest.fixture(scope="session")

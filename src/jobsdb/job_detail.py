@@ -62,7 +62,7 @@ class JobDetailPage:
         title = await self._get_job_title()
         if not title:
             logger.warning("Job title not found, page may have failed to load")
-            screenshot = await capture_screenshot(self.page, "job_detail_error")
+            await capture_screenshot(self.page, "job_detail_error")
             raise JobNotFoundError(f"Failed to load job detail page: {url}")
 
         logger.debug(f"Loaded job: {title}")

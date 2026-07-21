@@ -12,8 +12,6 @@ FakePageController — PageController 接口的纯内存假实现
 
 from typing import Any, Optional
 
-from src.browser.ports.page_controller import PageController
-
 
 class FakeElement:
     """内存元素:模拟 Playwright ElementHandle 的常用方法"""

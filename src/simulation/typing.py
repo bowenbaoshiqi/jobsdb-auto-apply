@@ -12,11 +12,10 @@
 import asyncio
 import random
 import string
-from typing import Optional
 
 import numpy as np
-from playwright.async_api import ElementHandle, Page
 from loguru import logger
+from playwright.async_api import ElementHandle, Page
 
 
 class TypingSimulator:

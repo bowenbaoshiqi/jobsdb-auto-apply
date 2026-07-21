@@ -8,7 +8,6 @@ v2.0: 通过 pytest_collection_modifyitems 自动给本目录所有测试打 e2e
       无需在每个测试文件里手动加 @pytest.mark.e2e。
 """
 
-import asyncio
 import uuid
 
 import pytest

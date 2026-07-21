@@ -72,7 +72,7 @@ async def verify_profile_persistence():
 
         # 方法3: 检查头像
         if not is_logged_in:
-            avatar = await page.query_selector('img[alt*="profile"], [data-automation="user-avatar"]')
+            avatar = await page.query_selector('img[alt*="profile"], [data-automation="user-avatar"]')  # noqa: E501
             if avatar and await avatar.is_visible():
                 print("✅ 找到用户头像")
                 is_logged_in = True

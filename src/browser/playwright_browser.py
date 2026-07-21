@@ -9,11 +9,10 @@ v2.0: 这是生产实现;测试用 FakeBrowser(src/browser/fake/)。
 
 from typing import Optional
 
-from src.browser.engine import BrowserEngine
-from src.browser.ports.browser_port import BrowserPort
-from src.browser.ports.page_controller import PageController
-from src.browser.playwright_page_controller import PlaywrightPageController
 from config.settings import BrowserConfig
+from src.browser.engine import BrowserEngine
+from src.browser.playwright_page_controller import PlaywrightPageController
+from src.browser.ports.page_controller import PageController
 
 
 class PlaywrightBrowser:

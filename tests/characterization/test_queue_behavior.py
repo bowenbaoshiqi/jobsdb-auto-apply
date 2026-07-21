@@ -5,15 +5,13 @@
 用 temp_database(真 SQLite)+ 自定义 SchedulerConfig(确定性),不起浏览器。
 """
 
-from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from config.settings import SchedulerConfig
-from src.scheduler.queue import ApplyQueue, RateLimiter, TimingOptimizer
+from src.scheduler.queue import ApplyQueue, RateLimiter
 from src.storage.models import ApplyResult, ApplyStatus, JobListing
-
 
 # 确定性的测试 config
 TEST_CONFIG = SchedulerConfig(
