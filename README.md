@@ -18,7 +18,16 @@
 
 ### 1. 安装依赖
 
+本项目用 [uv](https://docs.astral.sh/uv/) 管理依赖（v2.0 起推荐）：
+
 ```bash
+# 用 uv(推荐)
+uv venv
+uv pip install -e ".[dev]"
+uv pip install pytest-cov
+uv run playwright install chromium
+
+# 或用 pip(向后兼容)
 pip install -e ".[dev]"
 playwright install chromium
 ```
@@ -69,19 +78,81 @@ python -m src.main sessions
 ```
 resume/
 ├── src/                    # 核心源码
-│   ├── browser/            # 浏览器引擎 & 反指纹
-│   ├── jobsdb/             # JobsDB 交互层
+│   ├── browser/            # 浏览器抽象层
+│   │   ├── ports/          # BrowserPort + PageController 接口(Protocol)
+│   │   ├── fake/           # 内存假实现(单测用,不起浏览器)
+│   │   ├── playwright_*.py # Playwright 生产实现
+│   │   └── stealth.py      # 反指纹
+│   ├── jobsdb/             # JobsDB 交互层(只依赖 ports,不依赖 Playwright)
+│   │   ├── apply/          # 投递状态机(flow.py + steps/ + detectors.py)
+│   │   ├── login.py / homepage.py / job_detail.py
+│   │   └── selectors.py    # CSS 选择器集中管理
 │   ├── simulation/         # 人类行为模拟
 │   ├── scheduler/          # 调度与队列
 │   ├── monitor/            # 监控与仪表板
-│   ├── storage/            # 数据存储
-│   └── accounts/           # 多账户管理
+│   ├── storage/            # 数据存储(SQLite + cookies)
+│   ├── accounts/           # 多账户管理
+│   ├── factory.py          # ComponentFactory(DI: DefaultFactory + FakeFactory)
+│   └── orchestrator.py     # 协调器(通过工厂注入 10 个依赖)
 ├── scripts/                # 生产脚本
 │   └── auto_apply.py       # 自动投递主脚本
 ├── config/                 # 配置文件
-├── tests/                  # 测试
+├── tests/                  # 测试(三分类: unit / characterization / e2e)
 └── data/                   # 运行时数据（gitignore）
 ```
+
+## 🏗️ v2.0 架构（TDD 重构）
+
+v2.0 是一次纯重构：**投递行为与 v1.0 完全一致**，但内部结构按 TDD 重写，目标是降低耦合、增强健壮性。采用 Strangler Fig 模式分 6 阶段渐进迁移，v1.0 全程可用。
+
+### 核心改进
+
+1. **浏览器抽象层（依赖反转）**
+   - `BrowserPort` + `PageController` 用 Protocol 定义接口
+   - `jobsdb/*` 只依赖 `PageController` 接口，**不再 import Playwright 的 `Page`**
+   - 生产用 `PlaywrightPageController`，测试用 `FakePageController`（毫秒级，不起浏览器）
+
+2. **工厂模式依赖注入**
+   - `ComponentFactory`（Protocol，10 个 create 方法）生产 `Orchestrator` 的全部依赖
+   - `DefaultFactory` 生产真实组件，`FakeFactory` 生产内存假组件
+   - `Orchestrator` 不再硬编码 `new` 依赖，单测可注入 `FakeFactory` 全程不起浏览器、不落盘
+
+3. **投递流程状态机拆分**
+   - v1.0 的 543 行 `apply_flow.py` God Object 拆成 `apply/` 包
+   - `flow.py` 状态机 + `steps/` 下 7 个 `StepHandler`（每个独立可测）+ `detectors.py` 纯查询函数
+
+4. **异常三分法**
+   - A 类（重试）：`RateLimitError` 等可恢复异常
+   - B 类（降级）：cookie banner 关闭失败等非阻断异常，记日志继续
+   - C 类（上抛）：`CaptchaDetectedError` / `SessionExpiredError` 等终止性异常
+   - **清零** v1.0 的 8 处 `except Exception: pass` 静默吞错
+
+### 测试三分类
+
+| 分类 | 标记 | 用途 | CI |
+|---|---|---|---|
+| unit | `@pytest.mark.unit` | 纯单元测试，用 FakePageController，毫秒级 | ✅ 必跑 |
+| characterization | `@pytest.mark.characterization` | 锁定 v1.0 行为的安全网（重构前先写） | ✅ 跑 |
+| e2e | `@pytest.mark.e2e` | 真实 JobsDB + 手动登录，慢 | ❌ 默认跳过 |
+
+```bash
+# 默认跑 unit + characterization（不起浏览器）
+uv run pytest
+
+# 只跑单测
+uv run pytest -m unit
+
+# 跑全部(含 e2e,需要真实环境)
+uv run pytest -m ''
+
+# 带覆盖率(pyproject 卡 fail_under=60,当前 65%)
+uv run pytest --cov=src --cov-report=term-missing
+
+# lint
+uv run ruff check src/ tests/
+```
+
+详见 [v2.0 设计文档](docs/superpowers/specs/2026-07-20-v2.0-design.md) 和 [实现计划](docs/superpowers/plans/2026-07-20-v2.0-implementation.md)。
 
 ## 🛡️ 反检测策略
 
@@ -147,6 +218,17 @@ resume/
 - 建议每次投递数量不要过多，避免账号被限制
 
 ## 📝 更新日志
+
+### v2.0.0 (2026-07-20) — TDD 重构
+
+- ✅ 浏览器抽象层：`BrowserPort` + `PageController`（Protocol），`jobsdb/*` 解耦 Playwright
+- ✅ 工厂模式 DI：`ComponentFactory` 注入 Orchestrator 的 10 个依赖，`FakeFactory` 支持不起浏览器单测
+- ✅ 投递流程状态机拆分：543 行 God Object → `apply/` 包（flow + 7 个 StepHandler + detectors）
+- ✅ 异常三分法（A 重试 / B 降级 / C 上抛），清零 8 处 `except: pass`
+- ✅ 测试三分类（unit / characterization / e2e），覆盖率 39% → 65%
+- ✅ ruff lint 清零（221 → 0），CI 启用 lint + 覆盖率门槛
+- ✅ uv 环境支持，修复多个 v1.0 latent bug（apply_flow 缺 `import random`、main.py 缺 `os/Path` import 等）
+- ⚠️ **投递行为与 v1.0 完全一致**，无新功能
 
 ### v0.1.0 (2026-07-20)
 
