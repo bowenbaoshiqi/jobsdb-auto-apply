@@ -16,7 +16,7 @@ from src.accounts.registry import Account
 from src.browser.engine import BrowserEngine
 from src.browser.ports.page_controller import PageController
 from src.browser.playwright_page_controller import PlaywrightPageController
-from src.jobsdb.apply_flow import ApplyFlow
+from src.jobsdb.apply.flow import ApplyFlow
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.job_detail import JobDetailPage
 from src.jobsdb.login import LoginHandler

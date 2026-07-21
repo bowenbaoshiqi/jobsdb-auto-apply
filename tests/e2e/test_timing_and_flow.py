@@ -109,10 +109,11 @@ class TestApplyFlowStateMachine:
             await page.set_content(html_content)
 
             # 创建 ApplyFlow 实例（不需要 human simulator）
-            from src.jobsdb.apply_flow import ApplyFlow, ApplyStep
+            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
+            from src.jobsdb.apply.detectors import detect_current_step
 
             flow = ApplyFlow(page=page, human=None)
-            step = await flow._detect_current_step()
+            step = await detect_current_step(page)
 
             assert step == ApplyStep.RESUME_SELECTION, \
                 f"Expected RESUME_SELECTION, got {step}"
@@ -137,10 +138,11 @@ class TestApplyFlowStateMachine:
             """
             await page.set_content(html_content)
 
-            from src.jobsdb.apply_flow import ApplyFlow, ApplyStep
+            from src.jobsdb.apply.flow import ApplyFlow, ApplyStep
+            from src.jobsdb.apply.detectors import detect_current_step
 
             flow = ApplyFlow(page=page, human=None)
-            step = await flow._detect_current_step()
+            step = await detect_current_step(page)
 
             assert step == ApplyStep.SUBMITTED, \
                 f"Expected SUBMITTED, got {step}"
@@ -192,8 +194,8 @@ class TestApplyFlowStateMachine:
             """
             await page.set_content(html_content)
 
-            from src.jobsdb.apply_flow import ApplyFlow, ApplyResult
-            from src.storage.models import ApplyStatus
+            from src.jobsdb.apply.flow import ApplyFlow
+            from src.storage.models import ApplyResult, ApplyStatus
 
             flow = ApplyFlow(page=page, human=None)
             result = await flow.apply(job_id="mock-123")

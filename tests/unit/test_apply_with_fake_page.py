@@ -10,7 +10,8 @@
 import pytest
 
 from src.browser.fake.fake_page import FakeElement, FakePageController
-from src.jobsdb.apply_flow import ApplyFlow
+from src.jobsdb.apply.detectors import check_captcha, check_success
+from src.jobsdb.apply.flow import ApplyFlow
 from src.jobsdb.selectors import RECAPTCHA_IFRAME
 from src.storage.models import ApplyStatus
 
@@ -44,37 +45,37 @@ class TestApplyFlowWithFakePage:
 
     @pytest.mark.asyncio
     async def test_check_captcha_directly_with_fake(self):
-        """直接调 _check_captcha,验证 FakePageController 驱动 jobsdb 内部方法"""
+        """直接调 check_captcha,验证 FakePageController 驱动 jobsdb 内部方法"""
         page = FakePageController()
         flow = ApplyFlow(page)
 
         # 未预设 → False
-        assert await flow._check_captcha() is False
+        assert await check_captcha(page) is False
 
         # 预设 reCAPTCHA → True
         page.set_element(RECAPTCHA_IFRAME, FakeElement(visible=True))
-        assert await flow._check_captcha() is True
+        assert await check_captcha(page) is True
 
     @pytest.mark.asyncio
     async def test_check_success_with_fake_body_text(self):
-        """_check_success 的文本匹配用 FakePageController.text_content('body') 驱动"""
+        """check_success 的文本匹配用 FakePageController.text_content('body') 驱动"""
         page = FakePageController()
         flow = ApplyFlow(page)
 
         # 未预设 body 文本 → False
-        assert await flow._check_success() is False
+        assert await check_success(page) is False
 
         # 预设成功文案 → True
         page.set_body_text("Application submitted successfully")
-        assert await flow._check_success() is True
+        assert await check_success(page) is True
 
         # 另一种成功文案
         page.set_body_text("Thank you for applying")
-        assert await flow._check_success() is True
+        assert await check_success(page) is True
 
         # 无关文本 → False
         page.set_body_text("Please complete the form")
-        assert await flow._check_success() is False
+        assert await check_success(page) is False
 
 
 class TestFakePageSpeed:
