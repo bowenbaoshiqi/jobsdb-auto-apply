@@ -5,11 +5,11 @@
 import asyncio
 from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
 
 from config.settings import JobsDBConfig
 from src.accounts.registry import Account
+from src.browser.ports.page_controller import PageController
 from src.jobsdb.exceptions import LoginError, CaptchaDetectedError
 from src.jobsdb.selectors import (
     LOGIN_EMAIL_INPUT,
@@ -27,7 +27,7 @@ from src.utils.screenshot import capture_screenshot
 class LoginHandler:
     """JobsDB 登录处理器"""
 
-    def __init__(self, page: Page, config: JobsDBConfig,
+    def __init__(self, page: PageController, config: JobsDBConfig,
                  human: Optional[HumanSimulator] = None,
                  account: Optional[Account] = None):
         self.page = page
@@ -104,7 +104,7 @@ class LoginHandler:
                 return False
 
             # 检查 cookies 中是否有登录态
-            cookies = await self.page.context.cookies()
+            cookies = await self.page.get_cookies()
             jobsdb_cookies = [c for c in cookies if "jobsdb" in c.get("domain", "")]
             # 查找关键登录 cookie
             login_cookies = [c for c in jobsdb_cookies if c.get("name", "") in (

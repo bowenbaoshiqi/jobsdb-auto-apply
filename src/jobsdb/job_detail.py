@@ -5,9 +5,9 @@
 import asyncio
 from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 from src.jobsdb.exceptions import JobNotFoundError
 from src.jobsdb.selectors import (
     ALREADY_APPLIED_BADGE,
@@ -28,7 +28,7 @@ from src.utils.screenshot import capture_screenshot
 class JobDetailPage:
     """职位详情页处理器"""
 
-    def __init__(self, page: Page, job_url: Optional[str] = None,
+    def __init__(self, page: PageController, job_url: Optional[str] = None,
                  human: Optional[HumanSimulator] = None):
         self.page = page
         self.job_url = job_url

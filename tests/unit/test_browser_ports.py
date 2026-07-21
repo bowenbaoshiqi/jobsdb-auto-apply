@@ -98,9 +98,21 @@ class TestPageControllerInterface:
     def test_has_wait_for_timeout(self):
         assert inspect.iscoroutinefunction(PageController.wait_for_timeout)
 
-    # JS + 截图
+    def test_has_wait_for_load_state(self):
+        assert inspect.iscoroutinefunction(PageController.wait_for_load_state)
+
+    # JS + 内容/重载 + 截图
     def test_has_evaluate(self):
         assert inspect.iscoroutinefunction(PageController.evaluate)
+
+    def test_has_content(self):
+        assert inspect.iscoroutinefunction(PageController.content)
+
+    def test_has_reload(self):
+        assert inspect.iscoroutinefunction(PageController.reload)
+
+    def test_has_get_cookies(self):
+        assert inspect.iscoroutinefunction(PageController.get_cookies)
 
     def test_has_screenshot(self):
         assert inspect.iscoroutinefunction(PageController.screenshot)

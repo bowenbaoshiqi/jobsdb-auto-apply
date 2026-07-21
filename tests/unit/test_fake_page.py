@@ -126,6 +126,7 @@ class TestFakePageControllerInteract:
         page = FakePageController()
         await page.wait_for_selector(".x")
         await page.wait_for_timeout(100)
+        await page.wait_for_load_state("networkidle", timeout=15.0)
 
 
 class TestFakePageControllerNav:
@@ -158,6 +159,41 @@ class TestFakePageControllerNav:
     async def test_evaluate_returns_none_when_not_set(self):
         page = FakePageController()
         assert await page.evaluate("x") is None
+
+    @pytest.mark.asyncio
+    async def test_content_returns_body_text(self):
+        page = FakePageController()
+        page.set_body_text("page html-ish text")
+        assert await page.content() == "page html-ish text"
+
+    @pytest.mark.asyncio
+    async def test_content_empty_when_not_set(self):
+        page = FakePageController()
+        assert await page.content() == ""
+
+    @pytest.mark.asyncio
+    async def test_reload_no_error(self):
+        page = FakePageController()
+        await page.reload(wait_until="load")  # 不抛
+
+    @pytest.mark.asyncio
+    async def test_get_cookies_default_empty(self):
+        page = FakePageController()
+        assert await page.get_cookies() == []
+
+    @pytest.mark.asyncio
+    async def test_set_cookies_then_get(self):
+        page = FakePageController()
+        page.set_cookies([{"name": "AccessToken", "domain": "hk.jobsdb.com"}])
+        cookies = await page.get_cookies()
+        assert len(cookies) == 1
+        assert cookies[0]["name"] == "AccessToken"
+
+    @pytest.mark.asyncio
+    async def test_screenshot_full_page_recorded(self):
+        page = FakePageController()
+        await page.screenshot("/tmp/full.png", full_page=True)
+        assert "/tmp/full.png" in page._screenshot_paths
 
     def test_is_closed_default_false(self):
         page = FakePageController()

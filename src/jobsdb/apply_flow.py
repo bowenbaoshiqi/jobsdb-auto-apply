@@ -9,13 +9,14 @@ State machine design, layering by form phases.
 """
 
 import asyncio
+import random
 import time
 from enum import Enum, auto
 from typing import Optional
 
-from playwright.async_api import ElementHandle, Page
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 from src.jobsdb.exceptions import ApplyError, CaptchaDetectedError
 from src.jobsdb.selectors import (
     ADDITIONAL_QUESTIONS,
@@ -68,7 +69,7 @@ class ApplyFlow:
     Handles the complete application process, from clicking Apply to confirming success.
     """
 
-    def __init__(self, page: Page, human: Optional[HumanSimulator] = None,
+    def __init__(self, page: PageController, human: Optional[HumanSimulator] = None,
                  max_steps: int = 10):
         self.page = page
         self.human = human

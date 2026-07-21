@@ -76,13 +76,27 @@ class PlaywrightPageController:
     async def wait_for_timeout(self, ms: int) -> None:
         await self._page.wait_for_timeout(ms)
 
+    async def wait_for_load_state(self, state: str = "load", timeout: float = 30.0) -> None:
+        await self._page.wait_for_load_state(state, timeout=timeout * 1000)
+
     # --- JS 执行 ---
     async def evaluate(self, expression: str) -> Any:
         return await self._page.evaluate(expression)
 
+    # --- 页面内容/重载 ---
+    async def content(self) -> str:
+        return await self._page.content()
+
+    async def reload(self, wait_until: str = "domcontentloaded") -> None:
+        await self._page.reload(wait_until=wait_until)
+
+    # --- Cookie(登录态检测用) ---
+    async def get_cookies(self) -> list:
+        return await self._page.context.cookies()
+
     # --- 截图 ---
-    async def screenshot(self, path: str) -> None:
-        await self._page.screenshot(path=path)
+    async def screenshot(self, path: str, full_page: bool = False) -> None:
+        await self._page.screenshot(path=path, full_page=full_page)
 
     def is_closed(self) -> bool:
         return self._page.is_closed()

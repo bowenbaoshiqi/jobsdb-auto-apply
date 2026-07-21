@@ -69,6 +69,7 @@ class FakePageController:
         self._goto_calls: list[str] = []
         self._eval_results: dict[str, Any] = {}
         self._screenshot_paths: list[str] = []
+        self._cookies: list = []
 
     # --- 预设 API(测试用) ---
     def set_element(self, selector: str, element: Optional[FakeElement]) -> None:
@@ -169,6 +170,9 @@ class FakePageController:
     async def wait_for_timeout(self, ms: int) -> None:
         pass  # 不真等待
 
+    async def wait_for_load_state(self, state: str = "load", timeout: float = 30.0) -> None:
+        pass  # 假实现立即返回
+
     # --- JS ---
     async def evaluate(self, expression: str) -> Any:
         return self._eval_results.get(expression)
@@ -176,8 +180,23 @@ class FakePageController:
     def set_eval_result(self, expression: str, result: Any) -> None:
         self._eval_results[expression] = result
 
+    # --- 页面内容/重载 ---
+    async def content(self) -> str:
+        return getattr(self, "_body_text", "")
+
+    async def reload(self, wait_until: str = "domcontentloaded") -> None:
+        pass  # 假实现不真重载
+
+    # --- Cookie(登录态检测用) ---
+    async def get_cookies(self) -> list:
+        return list(self._cookies)
+
+    def set_cookies(self, cookies: list) -> None:
+        """预设 cookies(供登录态检测测试)"""
+        self._cookies = cookies
+
     # --- 截图 ---
-    async def screenshot(self, path: str) -> None:
+    async def screenshot(self, path: str, full_page: bool = False) -> None:
         self._screenshot_paths.append(path)
 
     def is_closed(self) -> bool:

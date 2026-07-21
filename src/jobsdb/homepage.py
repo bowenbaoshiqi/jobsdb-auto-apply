@@ -16,9 +16,9 @@ HTML 结构：
 import asyncio
 from typing import List, Optional
 
-from playwright.async_api import Page
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 from src.simulation.behavior import HumanSimulator
 from src.storage.models import JobListing
 
@@ -26,7 +26,7 @@ from src.storage.models import JobListing
 class HomepageScraper:
     """首页职位抓取器"""
 
-    def __init__(self, page: Page, human: Optional[HumanSimulator] = None):
+    def __init__(self, page: PageController, human: Optional[HumanSimulator] = None):
         self.page = page
         self.human = human
 

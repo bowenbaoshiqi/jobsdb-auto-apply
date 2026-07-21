@@ -3,19 +3,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from playwright.async_api import Page
-
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 
-async def capture_screenshot(page: Page,
+
+async def capture_screenshot(page: PageController,
                              filename: Optional[str] = None,
                              screenshots_dir: str = "./data/screenshots") -> str:
     """
     截取当前页面截图
 
     Args:
-        page: Playwright page 对象
+        page: PageController(任意实现)
         filename: 文件名（不含路径），默认使用时间戳
         screenshots_dir: 截图保存目录
 
@@ -40,14 +40,14 @@ async def capture_screenshot(page: Page,
         return ""
 
 
-async def save_page_html(page: Page,
+async def save_page_html(page: PageController,
                          filename: Optional[str] = None,
                          data_dir: str = "./data") -> str:
     """
     保存当前页面 HTML 内容
 
     Args:
-        page: Playwright page 对象
+        page: PageController(任意实现)
         filename: 文件名（不含路径），默认使用时间戳
         data_dir: HTML 保存目录
 

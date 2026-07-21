@@ -91,16 +91,52 @@ class TestPlaywrightPageControllerDelegation:
         page.wait_for_selector.assert_awaited_once_with(".x", timeout=10000.0)
 
     @pytest.mark.asyncio
+    async def test_wait_for_load_state_delegates_with_ms(self):
+        """wait_for_load_state timeout 秒 → 毫秒"""
+        ctrl, page = self._make()
+        await ctrl.wait_for_load_state("networkidle", timeout=15.0)
+        page.wait_for_load_state.assert_awaited_once_with("networkidle", timeout=15000.0)
+
+    @pytest.mark.asyncio
     async def test_evaluate_delegates(self):
         ctrl, page = self._make()
         page.evaluate = AsyncMock(return_value="result")
         assert await ctrl.evaluate("1+1") == "result"
 
     @pytest.mark.asyncio
+    async def test_content_delegates(self):
+        ctrl, page = self._make()
+        page.content = AsyncMock(return_value="<html>")
+        assert await ctrl.content() == "<html>"
+        page.content.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_reload_delegates(self):
+        ctrl, page = self._make()
+        await ctrl.reload(wait_until="load")
+        page.reload.assert_awaited_once_with(wait_until="load")
+
+    @pytest.mark.asyncio
+    async def test_get_cookies_delegates_to_context(self):
+        """get_cookies 委托给 page.context.cookies()(登录态检测用)"""
+        ctrl, page = self._make()
+        page.context = MagicMock()
+        page.context.cookies = AsyncMock(return_value=[{"name": "AccessToken"}])
+        cookies = await ctrl.get_cookies()
+        assert cookies == [{"name": "AccessToken"}]
+        page.context.cookies.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_screenshot_delegates(self):
         ctrl, page = self._make()
         await ctrl.screenshot("/tmp/x.png")
-        page.screenshot.assert_awaited_once_with(path="/tmp/x.png")
+        page.screenshot.assert_awaited_once_with(path="/tmp/x.png", full_page=False)
+
+    @pytest.mark.asyncio
+    async def test_screenshot_full_page_delegates(self):
+        ctrl, page = self._make()
+        await ctrl.screenshot("/tmp/x.png", full_page=True)
+        page.screenshot.assert_awaited_once_with(path="/tmp/x.png", full_page=True)
 
     def test_is_closed_delegates(self):
         ctrl, page = self._make()

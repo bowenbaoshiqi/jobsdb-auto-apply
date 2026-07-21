@@ -14,6 +14,8 @@ from loguru import logger
 from config.settings import AppConfig, get_config
 from src.accounts.registry import Account
 from src.browser.engine import BrowserEngine
+from src.browser.ports.page_controller import PageController
+from src.browser.playwright_page_controller import PlaywrightPageController
 from src.jobsdb.apply_flow import ApplyFlow
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.job_detail import JobDetailPage
@@ -47,6 +49,7 @@ class Orchestrator:
         # Core modules
         self.browser: Optional[BrowserEngine] = None
         self.page: Optional[Page] = None
+        self.page_controller: Optional[PageController] = None
         self.human: Optional[HumanSimulator] = None
 
         # Data storage (带账户隔离)
@@ -126,6 +129,8 @@ class Orchestrator:
             account_alias=self.account.alias,
         )
         self.page = await self.browser.start()
+        # jobsdb/* 依赖 PageController 接口;HumanSimulator 仍需原始 Page(mouse/viewport)
+        self.page_controller = PlaywrightPageController(self.page)
 
         # Initialize the human behavior simulator
         self.human = HumanSimulator(
@@ -138,9 +143,9 @@ class Orchestrator:
 
         # Initialize the JobsDB handler
         self.login_handler = LoginHandler(
-            self.page, self.config.jobsdb, self.human, self.account
+            self.page_controller, self.config.jobsdb, self.human, self.account
         )
-        self.scraper = HomepageScraper(self.page, self.human)
+        self.scraper = HomepageScraper(self.page_controller, self.human)
 
     async def _ensure_login(self) -> bool:
         """Ensure login status"""
@@ -200,7 +205,7 @@ class Orchestrator:
                 self.consecutive_failures += 1
             elif result.status == ApplyStatus.CAPTCHA:
                 # CAPTCHA, wait for manual resolution
-                await self.alert.captcha_alert(self.page, self.page.url)
+                await self.alert.captcha_alert(self.page_controller, self.page.url)
                 self.consecutive_failures = 0
 
             # Record the application result
@@ -234,7 +239,7 @@ class Orchestrator:
         """
         try:
             # Navigate to the position details page
-            detail_page = JobDetailPage(self.page, job.url, self.human)
+            detail_page = JobDetailPage(self.page_controller, job.url, self.human)
             await detail_page.navigate_with_simulation()
 
             # Check if already applied
@@ -267,14 +272,14 @@ class Orchestrator:
             await asyncio.sleep(2)
 
             # Handle the application flow
-            apply_flow = ApplyFlow(self.page, self.human)
+            apply_flow = ApplyFlow(self.page_controller, self.human)
             result = await apply_flow.apply(job.id)
 
             return result
 
         except Exception as e:
             logger.exception(f"Error applying to job {job.id}: {e}")
-            screenshot = await capture_screenshot(self.page, f"error_{job.id}")
+            screenshot = await capture_screenshot(self.page_controller, f"error_{job.id}")
             return ApplyResult(
                 status=ApplyStatus.FAILED,
                 job_id=job.id,
