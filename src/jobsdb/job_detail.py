@@ -12,7 +12,6 @@ from src.jobsdb.exceptions import JobNotFoundError
 from src.jobsdb.selectors import (
     ALREADY_APPLIED_BADGE,
     APPLY_BUTTON,
-    APPLY_NOW_BUTTON,
     EASY_APPLY_BUTTON,
     JOB_DESCRIPTION,
     JOB_DETAIL_COMPANY,
@@ -86,16 +85,19 @@ class JobDetailPage:
             return False
 
     async def get_apply_button(self):
-        """
-        获取申请按钮
+        """获取 Quick Apply 按钮(只投一键申请的职位)
 
-        尝试多种选择器，因为不同职位可能有不同的申请按钮
+        v2.0 决策(2026-07-22,e2e 暴露):用户只要 Quick Apply 的职位。
+        标准 "Apply"/"Apply now" 按钮常跳外部站点或需手动填长表,不在自动投递范围。
+        旧版把标准 APPLY_BUTTON/APPLY_NOW_BUTTON 也算进来 → 找到后点不动 → 误判失败。
+        现在只认 QUICK_APPLY_BUTTON / EASY_APPLY_BUTTON;两者都没有则返回 None,
+        由 orchestrator 判为 SKIPPED(not_quick_apply),不计入连续失败。
+
+        尝试多种选择器(quick/easy apply 有多种 DOM 变体)。
         """
         selectors = [
-            EASY_APPLY_BUTTON,
             QUICK_APPLY_BUTTON,
-            APPLY_BUTTON,
-            APPLY_NOW_BUTTON,
+            EASY_APPLY_BUTTON,
         ]
 
         for selector in selectors:

@@ -61,13 +61,15 @@ class FakePageController:
 
     def __init__(self, url: str = "https://fake.example.com/page"):
         self._url = url
-        self._elements: dict[str, FakeElement] = {}
+        self._elements: dict[str, Optional[FakeElement]] = {}
         self._element_lists: dict[str, list] = {}
         self._closed = False
         self._goto_calls: list[str] = []
         self._eval_results: dict[str, Any] = {}
         self._screenshot_paths: list[str] = []
         self._cookies: list = []
+        # ScrollSimulator 读 page.viewport_size["height"];给个合理默认让假实现可滚动
+        self.viewport_size: dict = {"width": 1280, "height": 800}
 
     # --- 预设 API(测试用) ---
     def set_element(self, selector: str, element: Optional[FakeElement]) -> None:
@@ -172,7 +174,8 @@ class FakePageController:
         pass  # 假实现立即返回
 
     # --- JS ---
-    async def evaluate(self, expression: str) -> Any:
+    async def evaluate(self, expression: str, arg: Any = None) -> Any:
+        # Playwright Page.evaluate(expression, arg) 可带参;假实现忽略 arg,按 expression 返回预设
         return self._eval_results.get(expression)
 
     def set_eval_result(self, expression: str, result: Any) -> None:
