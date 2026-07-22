@@ -110,17 +110,18 @@ class LoginHandler:
             if user_name:
                 return True
 
-            # 检查页面是否有 "Sign in" 链接（有的话说明没登录）
-            signin_link = await self.page.query_selector(
-                'a[href*="login"], button:has-text("Sign in"), a:has-text("Sign in")'
-            )
-            if signin_link:
-                return False
-
-            # 检查 cookies 中是否有登录态
+            # 检查 cookies 中是否有登录态(cookie 是最权威信号,优先于 DOM 文案判断)
             cookies = await self.page.get_cookies()
             jobsdb_cookies = [c for c in cookies if "jobsdb" in c.get("domain", "")]
-            # 查找关键登录 cookie
+            # Auth0 登录态:auth0.<tenant>.is.authenticated=true(JobsDB 真实信号,2026-07 确认)
+            # 比旧白名单(AccessToken 等)更稳:JobsDB 已迁到 Auth0,旧 cookie 名不再出现
+            for c in jobsdb_cookies:
+                name = c.get("name", "")
+                value = c.get("value", "")
+                if "is.authenticated" in name and value == "true":
+                    logger.info("Found auth0 authenticated cookie, assuming logged in")
+                    return True
+            # 旧白名单(向后兼容,部分场景可能仍用)
             login_cookies = [c for c in jobsdb_cookies if c.get("name", "") in (
                 "AccessToken", "RefreshToken", "JSESSIONID", "session_id",
                 "auth_st", "user_status", "jsessionid", "access_token",
@@ -128,6 +129,14 @@ class LoginHandler:
             if login_cookies:
                 logger.info(f"Found {len(login_cookies)} login cookies, assuming logged in")
                 return True
+
+            # 检查页面是否有 "Sign in" 链接（有的话说明没登录）
+            # 注意:此判断在 cookie 之后,避免登录态页面的页脚 "Sign in" 文案误判
+            signin_link = await self.page.query_selector(
+                'a[href*="login"], button:has-text("Sign in"), a:has-text("Sign in")'
+            )
+            if signin_link:
+                return False
 
             # 检查是否有用户相关的文本
             page_content = await self.page.content()

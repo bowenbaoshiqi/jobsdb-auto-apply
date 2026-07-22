@@ -273,6 +273,64 @@ class _StubCookieStore:
 # ═══════════════════════════════════════════════════════
 #  auto 模式:回归保护(TC-15 不破)
 # ═══════════════════════════════════════════════════════
+#  登录态检测:JobsDB 真实 cookie 信号(2026-07 e2e 暴露)
+# ═══════════════════════════════════════════════════════
+
+class TestIsLoggedInAuth0Detection:
+    """_is_logged_in 必须识别 JobsDB 真实登录态 cookie。
+
+    e2e 暴露:JobsDB 用 Auth0,登录态 cookie 是 auth0.<tenant>.is.authenticated=true,
+    而非旧白名单的 AccessToken/RefreshToken/JSESSIONID。旧白名单 + 过时 DOM 选择器
+    导致已登录的 profile 被判为未登录,manual 模式无限等待。
+    """
+
+    @pytest.mark.asyncio
+    async def test_auth0_authenticated_cookie_means_logged_in(self):
+        """有 auth0.*.is.authenticated=true cookie → 已登录(无需 DOM 元素)"""
+        page = _make_page(logged_in=False)  # 无 avatar 元素
+        page.set_cookies([
+            {"name": "auth0.abc123.is.authenticated", "value": "true",
+             "domain": ".jobsdb.com"},
+            {"name": "JobseekerSessionId", "value": "xyz", "domain": ".jobsdb.com"},
+        ])
+        handler = _make_handler(page, mode="manual", account=None)
+
+        assert await handler._is_logged_in() is True
+
+    @pytest.mark.asyncio
+    async def test_auth0_cookie_false_means_not_logged_in(self):
+        """auth0.*.is.authenticated=false → 未登录"""
+        page = _make_page(logged_in=False)
+        page.set_cookies([
+            {"name": "auth0.abc123.is.authenticated", "value": "false",
+             "domain": ".jobsdb.com"},
+        ])
+        handler = _make_handler(page, mode="manual", account=None)
+
+        assert await handler._is_logged_in() is False
+
+    @pytest.mark.asyncio
+    async def test_no_auth0_cookie_no_avatar_means_not_logged_in(self):
+        """无 auth0 cookie + 无 avatar → 未登录"""
+        page = _make_page(logged_in=False)
+        page.set_cookies([
+            {"name": "_ga", "value": "x", "domain": ".jobsdb.com"},  # 非 auth cookie
+        ])
+        handler = _make_handler(page, mode="manual", account=None)
+
+        assert await handler._is_logged_in() is False
+
+    @pytest.mark.asyncio
+    async def test_avatar_still_means_logged_in(self):
+        """avatar 元素存在 → 已登录(DOM 路径保留,多信号)"""
+        page = _make_page(logged_in=True)  # 预设 USER_AVATAR
+        page.set_cookies([])  # 无 cookie
+        handler = _make_handler(page, mode="manual", account=None)
+
+        assert await handler._is_logged_in() is True
+
+
+# ═══════════════════════════════════════════════════════
 
 class TestAutoModeRegression:
     @pytest.mark.asyncio
