@@ -74,6 +74,35 @@ class TestAccountRegistry:
         with pytest.raises(ValueError):
             registry.resolve_active()
 
+    def test_resolve_active_placeholder_for_manual(self, clean_accounts_dir, monkeypatch):
+        """manual 模式 + 无账户 + allow_placeholder → 返回占位 Account(空凭证)
+
+        manual 登录不要求凭证(持久化 profile 即凭证),不应被"无账户"卡住。
+        """
+        registry = clean_accounts_dir
+        # 确保 .env 向后兼容路径也走不到(无凭证)
+        from config.settings import JobsDBConfig
+        monkeypatch.setattr(
+            "src.accounts.registry.get_config",
+            lambda: type("C", (), {"jobsdb": JobsDBConfig(email=None, password=None)})(),
+        )
+
+        result = registry.resolve_active(allow_placeholder=True)
+        assert result.alias == "default"
+        assert result.email == ""
+        assert result.password == ""
+
+    def test_resolve_active_no_placeholder_still_raises(self, clean_accounts_dir, monkeypatch):
+        """allow_placeholder=False(默认) + 无账户 → 仍抛 ValueError(向后兼容)"""
+        registry = clean_accounts_dir
+        from config.settings import JobsDBConfig
+        monkeypatch.setattr(
+            "src.accounts.registry.get_config",
+            lambda: type("C", (), {"jobsdb": JobsDBConfig(email=None, password=None)})(),
+        )
+        with pytest.raises(ValueError):
+            registry.resolve_active()
+
     def test_mask_email(self):
         """邮箱脱敏"""
         assert AccountRegistry.mask_email("hello@example.com") == "hel***@example.com"

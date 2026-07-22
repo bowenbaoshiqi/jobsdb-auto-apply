@@ -72,20 +72,25 @@ def start(
     """启动简历投递"""
     config = get_config()
 
-    # 解析账户
-    registry = AccountRegistry()
-    resolved = registry.resolve_active(account)
-
-    # If headless mode is specified, update the configuration
-    if headless:
-        config.browser.headless = True
-
-    # 登录模式覆盖(CLI 旗标优先于 config.login.mode)
+    # 登录模式覆盖(CLI 旗标优先于 config.login.mode)— 必须在解析账户前,
+    # 因为 manual 模式下 resolve_active 用 allow_placeholder 兜底(无需凭证)
     if login_mode:
         config.login.mode = login_mode  # pydantic validator 校验 auto|manual
     # manual 模式必须有头(用户要在浏览器窗口手动登录)
     if config.login.mode == "manual":
         config.browser.headless = False
+
+    # If headless mode is specified, update the configuration
+    if headless:
+        config.browser.headless = True
+
+    # 解析账户
+    registry = AccountRegistry()
+    # manual 模式不要求凭证:无账户时返回占位(持久化 profile 即凭证)
+    resolved = registry.resolve_active(
+        account,
+        allow_placeholder=(config.login.mode == "manual"),
+    )
 
     # Display startup information
     console.print(Panel.fit(

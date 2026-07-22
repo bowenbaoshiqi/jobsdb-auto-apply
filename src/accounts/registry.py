@@ -90,6 +90,7 @@ class AccountRegistry:
     def resolve_active(
         self,
         preferred: Optional[str] = None,
+        allow_placeholder: bool = False,
     ) -> Account:
         """
         解析当前应使用的账户。
@@ -99,7 +100,10 @@ class AccountRegistry:
         2. .env 中有 JOBSDB_EMAIL / JOBSDB_PASSWORD -> 构造 default 账户（向后兼容）
         3. data/.active_account 有记录 -> 读该别名
         4. 读 accounts/ 下唯一的账户文件
-        5. 报错
+        5. allow_placeholder=True -> 返回空凭证占位账户(manual 模式,无需凭证)
+        6. 报错
+
+        allow_placeholder 供 manual 登录模式用:持久化 profile 即凭证,不要求 email/password。
         """
         if preferred:
             acc = self.get(preferred)
@@ -134,6 +138,12 @@ class AccountRegistry:
         all_accounts = self.list_all()
         if len(all_accounts) == 1:
             return all_accounts[0]
+
+        # manual 模式兜底:无需凭证,返回占位账户(持久化 profile 即凭证)
+        if allow_placeholder:
+            logger.info("无账户配置,返回占位账户(manual 模式,无需凭证)")
+            return Account(alias="default", email="", password="",
+                           notes="manual 模式占位账户,不持有凭证")
 
         raise ValueError(
             "没有可用账户。请先添加账户：\n"
