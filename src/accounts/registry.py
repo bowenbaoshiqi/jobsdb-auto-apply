@@ -189,7 +189,12 @@ class AccountRegistry:
 
     @staticmethod
     def mask_email(email: str) -> str:
-        """邮箱脱敏：显示前 3 位（或全部如果太短）"""
+        """邮箱脱敏：显示前 3 位（或全部如果太短）
+
+        空 / 无 @ 的输入原样返回(不崩溃),供 manual 模式占位账户(email="")用。
+        """
+        if not email or "@" not in email:
+            return email or ""
         local, domain = email.split("@", 1)
         shown = local[:3] if len(local) > 3 else local
         if len(local) > 3:

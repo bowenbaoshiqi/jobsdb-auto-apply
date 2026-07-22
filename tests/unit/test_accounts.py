@@ -107,3 +107,9 @@ class TestAccountRegistry:
         """邮箱脱敏"""
         assert AccountRegistry.mask_email("hello@example.com") == "hel***@example.com"
         assert AccountRegistry.mask_email("ab@test.org") == "ab***@test.org"
+
+    def test_mask_email_empty_or_invalid(self):
+        """空邮箱 / 无 @ 的邮箱不崩溃(manual 模式占位账户 email 为空)"""
+        assert AccountRegistry.mask_email("") == ""
+        assert AccountRegistry.mask_email("plainstring") == "plainstring"
+        assert AccountRegistry.mask_email(None) == ""
