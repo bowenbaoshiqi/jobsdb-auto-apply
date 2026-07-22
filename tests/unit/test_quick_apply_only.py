@@ -1,13 +1,15 @@
 """
 单元测试: 只投 Quick Apply 职位(标准 Apply 直接跳过)
 
-e2e 暴露(2026-07-22):JobsDB 职位详情页的标准 "Apply" 按钮选择器对不上新版 DOM,
-导致连续 2 个职位 "Apply button not found" → FAILED → 触发 detection 阈值中止会话。
-但用户只要 Quick Apply 的职位,标准 Apply 的本就不该投(会跳到外部站点/需手动填表)。
+v1.0 策略:JobsDB 职位只投 Quick/Easy Apply 的(一键申请,站内完成);
+标准 "Apply"/"Apply now" 常跳外部站点或需手动填长表,不在自动投递范围。
+v1.0 的 get_apply_button 用选择器优先级软实现(easy/quick 排前),
+v2.0 强化为硬过滤:get_apply_button 只认 QUICK_APPLY_BUTTON / EASY_APPLY_BUTTON,
+两者都没有 → orchestrator 判 SKIPPED(reason=not_quick_apply),非 FAILED。
 
-决策:把 "找不到 quick-apply 按钮" 从 FAILED 降级为 SKIPPED(reason=not_quick_apply),
-不进连续失败计数,不会误触中止阈值。get_apply_button 只认 quick-apply/easy-apply,
-不再认标准 APPLY_BUTTON / APPLY_NOW_BUTTON。
+e2e(2026-07-22)暴露的回归:旧版把 "找不到 quick-apply 按钮" 判 FAILED,
+连续 2 个标准 apply 职位就触发 detection 阈值(=2)中止会话,0 成功。
+SKIPPED 不进 consecutive_failures,不误触中止阈值。
 
 用 FakePageController 注入,不起浏览器。QUICK_APPLY_BUTTON 选择器存在 = quick-apply 职位。
 """

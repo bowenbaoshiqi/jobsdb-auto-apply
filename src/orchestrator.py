@@ -273,8 +273,8 @@ class Orchestrator:
             # Get the apply button(只投 Quick Apply;标准 Apply 职位跳过)
             apply_button = await detail_page.get_apply_button()
             if not apply_button:
-                # v2.0(2026-07-22):无 quick-apply 按钮 = 标准 Apply 职位(跳外部/需手动),
-                # 不算失败。旧版判 FAILED,连续 2 个就误触 detection 阈值中止会话。
+                # v1.0 策略:无 quick-apply 按钮 = 标准 Apply 职位(跳外部/需手动),不投。
+                # 旧版判 FAILED,连续 2 个就误触 detection 阈值中止会话(e2e 2026-07-22 暴露)。
                 logger.info(f"No Quick Apply button for {job.title}, skipping (standard Apply)")
                 return ApplyResult(
                     status=ApplyStatus.SKIPPED,

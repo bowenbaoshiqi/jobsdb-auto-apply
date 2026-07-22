@@ -87,11 +87,14 @@ class JobDetailPage:
     async def get_apply_button(self):
         """获取 Quick Apply 按钮(只投一键申请的职位)
 
-        v2.0 决策(2026-07-22,e2e 暴露):用户只要 Quick Apply 的职位。
-        标准 "Apply"/"Apply now" 按钮常跳外部站点或需手动填长表,不在自动投递范围。
-        旧版把标准 APPLY_BUTTON/APPLY_NOW_BUTTON 也算进来 → 找到后点不动 → 误判失败。
-        现在只认 QUICK_APPLY_BUTTON / EASY_APPLY_BUTTON;两者都没有则返回 None,
-        由 orchestrator 判为 SKIPPED(not_quick_apply),不计入连续失败。
+        v1.0 策略:JobsDB 只投 Quick/Easy Apply 职位(站内一键完成);
+        标准 "Apply"/"Apply now" 常跳外部站点或需手动填长表,不自动投。
+        v1.0 用选择器优先级软实现(easy/quick 排前),v2.0 强化为硬过滤:
+        只认 QUICK_APPLY_BUTTON / EASY_APPLY_BUTTON,两者都没有返回 None,
+        由 orchestrator 判 SKIPPED(not_quick_apply),不计入连续失败。
+
+        e2e(2026-07-22)回归:旧版把标准 APPLY_BUTTON/APPLY_NOW_BUTTON 也算进来 →
+        新版 DOM 选择器对不上 → 找不到按钮 → 误判 FAILED → 连续失败触发中止。
 
         尝试多种选择器(quick/easy apply 有多种 DOM 变体)。
         """
