@@ -84,7 +84,7 @@ class SchedulerConfig(BaseModel):
     max_applies_per_session: int = 10
     max_per_hour: int = 10
     max_per_day: int = 30
-    min_delay_between_seconds: float = 180.0  # 3 minutes (conservative)
+    min_delay_between_seconds: float = 60.0  # 1 minute + 抖动(测试用,原 v1.0 为 180s 保守值)
     session_min_duration_minutes: float = 15.0
     # 高峰时段排除（香港时间）
     peak_hours_exclude: list = Field(default_factory=lambda: [
