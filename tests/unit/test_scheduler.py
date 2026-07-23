@@ -59,14 +59,21 @@ class TestRateLimiter:
             await asyncio.wait_for(limiter.wait_if_needed(), timeout=0.5)
 
     @pytest.mark.asyncio
-    async def test_tc10_min_delay_between(self, temp_database):
+    async def test_tc10_min_delay_between(self, temp_database, sample_jobs):
         """
-        TC-10 补充：正常情况下的最小间隔
+        TC-10 补充：非首次申请(本小时已有 1 条提交)走最小间隔 + 抖动
         """
         config = SchedulerConfig(
             min_delay_between_seconds=0.1,  # 100ms，加速测试
         )
         limiter = RateLimiter(config, temp_database)
+        temp_database.set_account("default")
+
+        # 预置 1 条已提交 → hour_count=1(非首次),才会走 min_delay 分支
+        job = sample_jobs[0]
+        temp_database.save_job(job)
+        temp_database.record_application(
+            ApplyResult(status=ApplyStatus.SUBMITTED, job_id=job.id), session_id="s1")
 
         start = asyncio.get_event_loop().time()
         await limiter.wait_if_needed()

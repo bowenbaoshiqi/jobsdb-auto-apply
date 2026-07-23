@@ -24,6 +24,10 @@ async def capture_screenshot(page: PageController,
     if filename is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         filename = f"screenshot_{timestamp}.png"
+    elif not Path(filename).suffix:
+        # e2e(2026-07-22)暴露:调用方传无扩展名文件名(如 apply_error_{job_id}),
+        # Playwright 按扩展名推断 mime type → 报 "Unsupported screenshot mime type"。
+        filename += ".png"
 
     screenshots_path = Path(screenshots_dir)
     screenshots_path.mkdir(parents=True, exist_ok=True)

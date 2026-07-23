@@ -117,6 +117,12 @@ class RateLimiter:
                 await asyncio.sleep(wait_seconds)
                 return
 
+            # 第一次申请不等待(hour_count==0 表示本小时无记录,即首个职位),
+            # 避免 5 个职位的测试要等 4×延迟。从第二个职位开始才走 min_delay + 抖动。
+            if hour_count == 0:
+                logger.debug("Rate limiter: first apply this hour, skipping min delay")
+                return
+
         # Minimum interval waiting
         min_delay = self.config.min_delay_between_seconds
         # Add random perturbation

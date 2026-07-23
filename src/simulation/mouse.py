@@ -39,6 +39,10 @@ class MouseSimulator:
             hover_time: 悬停时间（默认随机 0.2-0.8 秒）
         """
         try:
+            # e2e(2026-07-22)暴露:元素在视口外(如 /apply/profile 页底部的 Continue,
+            # 实测 y=2129)时,bounding_box 返回的是页面坐标,直接 mouse.click(x, y)
+            # 会点在视口外 → 点击落空,Continue 怎么点都不前进。先滚动进视口再取坐标。
+            await element.scroll_into_view_if_needed()
             box = await element.bounding_box()
             if not box:
                 logger.warning("Element has no bounding box")

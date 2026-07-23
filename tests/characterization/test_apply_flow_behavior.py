@@ -59,6 +59,10 @@ def make_mock_page(selector_map=None, body_text="", query_selector_all_map=None)
     page.query_selector_all = query_selector_all
     page.text_content = AsyncMock(return_value=body_text)
     page.wait_for_selector = AsyncMock()
+    # evaluate 返回 None:代表"JS 检测路径无可识别内容",保持"无任何元素 → UNKNOWN"
+    # 的既有意图(2026-07-22 求职信文本检测新增 evaluate 路径后需要显式 stub,
+    # 否则裸 AsyncMock 的 evaluate 返回 truthy 值会误判为 COVER_LETTER)。
+    page.evaluate = AsyncMock(return_value=None)
     page.url = "https://hk.jobsdb.com/job/123/apply"
     return page
 

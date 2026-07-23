@@ -24,18 +24,29 @@ from src.jobsdb.selectors import (
     RESUME_SELECTION,
     STEP_INDICATOR,
     SUBMIT_APPLICATION_BUTTON,
+    SUBMIT_APPLICATION_FINAL,
     SUCCESS_MESSAGE,
     SUCCESS_MODAL,
 )
 
-# 成功文案(v1.0 _check_success 的 6 个指标,顺序不动)
+# 成功文案(v1.0 _check_success 的 6 个指标 + e2e 2026-07-22 补充的变体)
 _SUCCESS_INDICATORS = (
     "Application submitted",
     "successfully submitted",
     "Thank you for applying",
+    "Thanks for applying",
     "Application received",
+    "application has been submitted",
+    "application has been sent",
+    "Application sent",
+    "You've applied",
+    "You have applied",
+    "successfully applied",
     "申请已提交",
     "已成功提交",
+    "申請已提交",
+    "感謝您的申請",
+    "感谢您的申请",
 )
 
 # 登录态 cookie 名(v1.0 _check_login_status 用,login.py 保留)
@@ -117,7 +128,23 @@ async def detect_current_step(page: PageController) -> ApplyStep:
     if await page.query_selector(COVER_LETTER_SECTION):
         return ApplyStep.COVER_LETTER
 
+    # e2e(2026-07-22):真实一页式求职信单选页无 COVER_LETTER_SECTION 属性,
+    # label[for] radio id 动态;按 label 文本含 "cover letter" 判定
+    # (与 CoverLetterStep.detect 同一套 JS,确保 detect/handle 一致)。
+    try:
+        from src.jobsdb.apply.steps.cover_letter_js import _HAS_COVER_LETTER_JS
+        if await page.evaluate(_HAS_COVER_LETTER_JS):
+            return ApplyStep.COVER_LETTER
+    except Exception as e:
+        logger.debug(f"cover-letter text detect failed: {e}")
+
     # 可提交状态(Submit 按钮可见,但尚未提交)
+    # e2e(2026-07-22):review 页真实提交按钮是 "Submit application",优先精确匹配,
+    # 避免 SUBMIT_APPLICATION_BUTTON 误命中向导顶部 "Review and submit" 指示按钮。
+    final_submit = await page.query_selector(SUBMIT_APPLICATION_FINAL)
+    if final_submit and await final_submit.is_visible():
+        return ApplyStep.REVIEW
+
     submit_btn = await page.query_selector(SUBMIT_APPLICATION_BUTTON)
     if submit_btn:
         is_visible = await submit_btn.is_visible()

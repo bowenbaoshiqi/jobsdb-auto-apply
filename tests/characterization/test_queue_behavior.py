@@ -124,11 +124,32 @@ class TestBuildQueueLimit:
 
 class TestRateLimiter:
     @pytest.mark.asyncio
-    async def test_wait_if_needed_sleeps_min_delay(self, temp_database):
-        """未达限流时,等待 min_delay + 随机扰动"""
+    async def test_wait_if_needed_skips_delay_on_first_apply(self, temp_database):
+        """本小时无已提交记录(hour_count==0)= 首次申请,跳过 min_delay 不等待"""
         config = SchedulerConfig(max_applies_per_session=10, max_per_hour=10,
                                  max_per_day=30, min_delay_between_seconds=100.0)
         limiter = RateLimiter(config, temp_database)
+
+        with patch("src.scheduler.queue.asyncio.sleep", new=AsyncMock()) as mock_sleep:
+            await limiter.wait_if_needed()
+            # 首次申请不等待
+            mock_sleep.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_wait_if_needed_sleeps_min_delay_on_second_apply(
+        self, temp_database, sample_jobs
+    ):
+        """本小时已有 1 条提交(非首次)→ 等待 min_delay + 随机扰动"""
+        config = SchedulerConfig(max_applies_per_session=10, max_per_hour=10,
+                                 max_per_day=30, min_delay_between_seconds=100.0)
+        limiter = RateLimiter(config, temp_database)
+        temp_database.set_account("default")
+
+        # 制造 1 条已提交(使 hour_count=1,非首次)
+        job = sample_jobs[0]
+        temp_database.save_job(job)
+        temp_database.record_application(
+            ApplyResult(status=ApplyStatus.SUBMITTED, job_id=job.id), session_id="s1")
 
         with patch("src.scheduler.queue.asyncio.sleep", new=AsyncMock()) as mock_sleep:
             await limiter.wait_if_needed()

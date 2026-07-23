@@ -50,6 +50,10 @@ class PlaywrightPageController:
             return None
         return await elem.get_attribute(attr)
 
+    async def text_content(self, selector: str = "body") -> Optional[str]:
+        """页面级 text_content(e2e 2026-07-22 暴露:check_success 依赖,协议缺失)"""
+        return await self._page.text_content(selector)
+
     # --- 交互(写) ---
     async def click(self, selector: str, timeout: float = 30.0) -> None:
         await self._page.click(selector, timeout=timeout * 1000)

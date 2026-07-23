@@ -126,6 +126,9 @@ COVER_LETTER_TEXTAREA = 'textarea[data-automation="cover-letter-text"], textarea
 
 # 提交按钮
 SUBMIT_APPLICATION_BUTTON = 'button[data-automation="submit-application"], button[type="submit"]:has-text("Submit")'  # noqa: E501
+# 最终提交按钮(review 页专有,e2e 2026-07-22 实测文案 "Submit application")。
+# 优先于 SUBMIT_APPLICATION_BUTTON:后者可能误命中向导顶部 "Review and submit" 步骤指示按钮。
+SUBMIT_APPLICATION_FINAL = 'button[type="submit"]:has-text("Submit application"), button:has-text("Submit application")'  # noqa: E501
 CONFIRM_SUBMIT_BUTTON = 'button:has-text("Confirm"), button:has-text("Submit application")'
 
 # 下一步

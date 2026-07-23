@@ -23,6 +23,7 @@ from src.jobsdb.selectors import (
     APPLY_BUTTON,
     APPLY_NOW_BUTTON,
     EASY_APPLY_BUTTON,
+    JOB_DETAIL_APPLY_LINK,
     JOB_DETAIL_TITLE,
     QUICK_APPLY_BUTTON,
 )
@@ -108,6 +109,76 @@ class TestGetApplyButtonQuickApplyOnly:
     async def test_no_apply_button_returns_none(self):
         """页面无任何 apply 按钮 → None"""
         page = _make_page()
+        detail = JobDetailPage(page)
+
+        btn = await detail.get_apply_button()
+
+        assert btn is None
+
+
+# ═══════════════════════════════════════════════════════
+#  JobDetailPage.get_apply_button: 真实 DOM(统一 job-detail-apply 入口)
+#
+# e2e(2026-07-22)发现:当前 JobsDB quick/standard apply 共用同一个
+#   <a data-automation="job-detail-apply"> 入口,区别只在按钮文案。
+# 以下测试锁定这个真实行为的文案判定逻辑。
+# ═══════════════════════════════════════════════════════
+
+class TestGetApplyButtonUnifiedLink:
+    @pytest.mark.asyncio
+    async def test_unified_link_with_quick_apply_text_returned(self):
+        """job-detail-apply 文案 "Quick apply" → 返回(真实 quick-apply 职位)"""
+        page = _make_page()
+        page.set_element(
+            JOB_DETAIL_APPLY_LINK,
+            FakeElement(text="Quick apply", visible=True),
+        )
+        detail = JobDetailPage(page)
+
+        btn = await detail.get_apply_button()
+
+        assert btn is not None
+
+    @pytest.mark.asyncio
+    async def test_unified_link_with_standard_apply_text_not_returned(self):
+        """job-detail-apply 文案 "Apply" → None(标准 apply,跳过)
+
+        这是 e2e 暴露的核心回归:之前统一入口的文案是 "Apply" 也被当 quick,
+        或反过来 "Quick apply" 找不到选择器而 SKIPPED。
+        """
+        page = _make_page()
+        page.set_element(
+            JOB_DETAIL_APPLY_LINK,
+            FakeElement(text="Apply", visible=True),
+        )
+        detail = JobDetailPage(page)
+
+        btn = await detail.get_apply_button()
+
+        assert btn is None
+
+    @pytest.mark.asyncio
+    async def test_unified_link_chinese_quick_apply_returned(self):
+        """job-detail-apply 文案 "快速申請"(繁中)→ 返回"""
+        page = _make_page()
+        page.set_element(
+            JOB_DETAIL_APPLY_LINK,
+            FakeElement(text="快速申請", visible=True),
+        )
+        detail = JobDetailPage(page)
+
+        btn = await detail.get_apply_button()
+
+        assert btn is not None
+
+    @pytest.mark.asyncio
+    async def test_unified_link_invisible_returns_none(self):
+        """job-detail-apply 存在但不可见 → None(等价于无按钮)"""
+        page = _make_page()
+        page.set_element(
+            JOB_DETAIL_APPLY_LINK,
+            FakeElement(text="Quick apply", visible=False),
+        )
         detail = JobDetailPage(page)
 
         btn = await detail.get_apply_button()

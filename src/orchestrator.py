@@ -83,9 +83,12 @@ class Orchestrator:
         self.consecutive_failures = 0
         self.detection_suspected = False
 
-    async def run(self) -> dict:
+    async def run(self, job_ids: Optional[list[str]] = None) -> dict:
         """
         Main execution method
+
+        Args:
+            job_ids: 可选的指定职位 ID 列表。传入时跳过首页抓取,直接投递这些职位。
 
         Returns:
             Session summary report
@@ -93,6 +96,8 @@ class Orchestrator:
         logger.info("=" * 50)
         logger.info("JobsDB Resume Assistant Starting...")
         logger.info(f"Max jobs this session: {self.max_jobs}")
+        if job_ids:
+            logger.info(f"指定职位 IDs: {job_ids}")
         logger.info("=" * 50)
 
         try:
@@ -103,8 +108,20 @@ class Orchestrator:
             if not await self._ensure_login():
                 return self._create_error_report("Login failed")
 
-            # Phase 3: Grab recommended positions
-            jobs = await self._scrape_jobs()
+            # Phase 3: Grab recommended positions (或直接使用指定 IDs)
+            if job_ids:
+                jobs = [
+                    JobListing(
+                        id=jid,
+                        title=f"Job {jid}",
+                        company="Unknown",
+                        url=f"https://hk.jobsdb.com/job/{jid}",
+                    )
+                    for jid in job_ids
+                ]
+            else:
+                jobs = await self._scrape_jobs()
+
             if not jobs:
                 logger.info("No new jobs to apply")
                 return self._create_empty_report()
@@ -196,6 +213,10 @@ class Orchestrator:
         logger.info(f"Processing {len(queue)} jobs...")
 
         for i, job in enumerate(queue, 1):
+            # max_jobs 硬上限(覆盖 build_queue 的 max_applies_per_session 上限)
+            if i > self.max_jobs:
+                logger.info(f"Reached max_jobs limit ({self.max_jobs}), stopping")
+                break
             logger.info(f"[{i}/{len(queue)}] Processing: {job.title} @ {job.company}")
 
             # Frequency limit check
@@ -283,11 +304,39 @@ class Orchestrator:
                 )
 
             # Click the apply button
-            if self.human:
-                await self.human.click_apply_button(apply_button)
-            else:
-                await apply_button.click()
-                await asyncio.sleep(2)
+            # e2e(2026-07-22)暴露:详情页 React 重渲染会让拿到的 ElementHandle 在点击前
+            # detached → "Element is not attached to the DOM"。标准解法:detached 时
+            # 重新拉取按钮再点(最多 3 次);若重拉时页面已跳 /apply,说明上次点击其实已生效。
+            clicked = False
+            for attempt in range(3):
+                try:
+                    if attempt > 0:
+                        apply_button = await detail_page.get_apply_button()
+                        if not apply_button:
+                            if "/apply" in self.page_controller.url:
+                                clicked = True
+                                break
+                            return ApplyResult(
+                                status=ApplyStatus.SKIPPED,
+                                job_id=job.id,
+                                reason="not_quick_apply",
+                            )
+                    if self.human:
+                        await self.human.click_apply_button(apply_button)
+                    else:
+                        await apply_button.click()
+                        await asyncio.sleep(2)
+                    clicked = True
+                    break
+                except Exception as e:
+                    if "not attached" not in str(e):
+                        raise
+                    logger.warning(
+                        f"Apply button detached (attempt {attempt + 1}/3), refetching: {e}"
+                    )
+                    await asyncio.sleep(1)
+            if not clicked:
+                raise JobsDBError(f"Apply button keeps detaching for job {job.id}")
 
             # Wait for the form/modal to appear
             await asyncio.sleep(2)

@@ -197,7 +197,7 @@ class LoginHandler:
             # 找到邮箱输入框
             logger.debug("Filling email")
             email_input = await self.page.wait_for_selector(
-                LOGIN_EMAIL_INPUT, timeout=10000
+                LOGIN_EMAIL_INPUT, timeout=10  # 秒(controller 内部 ×1000);误传 10000 会等 2.7h
             )
             if not email_input:
                 raise LoginError("Email input not found")
@@ -212,7 +212,7 @@ class LoginHandler:
             # 找到密码输入框
             logger.debug("Filling password")
             password_input = await self.page.wait_for_selector(
-                LOGIN_PASSWORD_INPUT, timeout=10000
+                LOGIN_PASSWORD_INPUT, timeout=10
             )
             if not password_input:
                 raise LoginError("Password input not found")
@@ -229,7 +229,7 @@ class LoginHandler:
             # 点击登录按钮
             logger.debug("Clicking login button")
             submit_button = await self.page.wait_for_selector(
-                LOGIN_SUBMIT_BUTTON, timeout=10000
+                LOGIN_SUBMIT_BUTTON, timeout=10
             )
             if not submit_button:
                 raise LoginError("Login submit button not found")
