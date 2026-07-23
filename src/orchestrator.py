@@ -5,23 +5,27 @@ Coordinate all modules to complete the end-to-end job submission process.
 """
 
 import asyncio
-import uuid
-from typing import List, Optional
+from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 from config.settings import AppConfig, get_config
 from src.accounts.registry import Account
-from src.browser.engine import BrowserEngine
-from src.jobsdb.apply_flow import ApplyFlow
+from src.browser.ports.browser_port import BrowserPort
+from src.browser.ports.page_controller import PageController
+from src.factory import ComponentFactory, DefaultFactory
+from src.jobsdb.apply.flow import ApplyFlow
+from src.jobsdb.exceptions import (
+    CaptchaDetectedError,
+    JobsDBError,
+    RateLimitError,
+    SessionExpiredError,
+)
 from src.jobsdb.homepage import HomepageScraper
 from src.jobsdb.job_detail import JobDetailPage
 from src.jobsdb.login import LoginHandler
-from src.monitor.tracker import AlertManager, ApplicationTracker, StatsAggregator
-from src.scheduler.queue import ApplyQueue, RateLimiter, TimingOptimizer
 from src.simulation.behavior import HumanSimulator
-from src.storage.database import Database
 from src.storage.models import ApplyResult, ApplyStatus, JobListing, SessionStatus
 from src.utils.screenshot import capture_screenshot, generate_session_id
 
@@ -39,33 +43,38 @@ class Orchestrator:
 
     def __init__(self, config: Optional[AppConfig] = None,
                  account: Optional[Account] = None,
-                 max_jobs: Optional[int] = None):
+                 max_jobs: Optional[int] = None,
+                 factory: Optional[ComponentFactory] = None):
         self.config = config or get_config()
         self.account = account or Account(alias="default", email="", password="")
         self.max_jobs = max_jobs or self.config.scheduler.max_applies_per_session
+        # 工厂注入:默认真实(DefaultFactory),测试可传 FakeFactory
+        self.factory: ComponentFactory = factory or DefaultFactory(self.config)
 
-        # Core modules
-        self.browser: Optional[BrowserEngine] = None
+        # Core modules(浏览器延迟创建,沿用 v1.0 时机)
+        self.browser: Optional[BrowserPort] = None
         self.page: Optional[Page] = None
+        self.page_controller: Optional[PageController] = None
         self.human: Optional[HumanSimulator] = None
 
-        # Data storage (带账户隔离)
-        self.db = Database(self.config.storage.database_path)
-        self.db.set_account(self.account.alias)
+        # Data storage (带账户隔离)— 走工厂
+        self.db = self.factory.create_database(
+            self.config.storage.database_path, self.account.alias
+        )
 
-        # JobsDB interaction
+        # JobsDB interaction(延迟创建,需要 page)
         self.login_handler: Optional[LoginHandler] = None
         self.scraper: Optional[HomepageScraper] = None
 
-        # Scheduler
-        self.queue_manager = ApplyQueue(self.db, self.config.scheduler)
-        self.rate_limiter = RateLimiter(self.config.scheduler, self.db)
-        self.timing_optimizer = TimingOptimizer(self.config.scheduler)
+        # Scheduler — 走工厂
+        self.queue_manager = self.factory.create_queue_manager(self.db, self.config.scheduler)
+        self.rate_limiter = self.factory.create_rate_limiter(self.config.scheduler, self.db)
+        self.timing_optimizer = self.factory.create_timing_optimizer(self.config.scheduler)
 
-        # Monitor
-        self.tracker = ApplicationTracker(self.db)
-        self.alert = AlertManager(self.config.monitoring.alert_on_captcha)
-        self.stats = StatsAggregator(self.db)
+        # Monitor — 走工厂
+        self.tracker = self.factory.create_tracker(self.db)
+        self.alert = self.factory.create_alert_manager(self.config.monitoring.alert_on_captcha)
+        self.stats = self.factory.create_stats(self.db)
 
         # State
         self.session_id: Optional[str] = None
@@ -74,9 +83,12 @@ class Orchestrator:
         self.consecutive_failures = 0
         self.detection_suspected = False
 
-    async def run(self) -> dict:
+    async def run(self, job_ids: Optional[list[str]] = None) -> dict:
         """
         Main execution method
+
+        Args:
+            job_ids: 可选的指定职位 ID 列表。传入时跳过首页抓取,直接投递这些职位。
 
         Returns:
             Session summary report
@@ -84,6 +96,8 @@ class Orchestrator:
         logger.info("=" * 50)
         logger.info("JobsDB Resume Assistant Starting...")
         logger.info(f"Max jobs this session: {self.max_jobs}")
+        if job_ids:
+            logger.info(f"指定职位 IDs: {job_ids}")
         logger.info("=" * 50)
 
         try:
@@ -94,8 +108,20 @@ class Orchestrator:
             if not await self._ensure_login():
                 return self._create_error_report("Login failed")
 
-            # Phase 3: Grab recommended positions
-            jobs = await self._scrape_jobs()
+            # Phase 3: Grab recommended positions (或直接使用指定 IDs)
+            if job_ids:
+                jobs = [
+                    JobListing(
+                        id=jid,
+                        title=f"Job {jid}",
+                        company="Unknown",
+                        url=f"https://hk.jobsdb.com/job/{jid}",
+                    )
+                    for jid in job_ids
+                ]
+            else:
+                jobs = await self._scrape_jobs()
+
             if not jobs:
                 logger.info("No new jobs to apply")
                 return self._create_empty_report()
@@ -113,7 +139,17 @@ class Orchestrator:
 
             # Phase 6: Generate the report
             return self._create_session_report()
-            logger.exception(f"Orchestrator error: {e}")
+        except CaptchaDetectedError as e:
+            logger.warning(f"CAPTCHA detected, manual resolution needed: {e}")
+            return self._create_error_report(f"captcha: {e}")
+        except SessionExpiredError as e:
+            logger.warning(f"Session expired: {e}")
+            return self._create_error_report(f"session_expired: {e}")
+        except RateLimitError as e:
+            logger.warning(f"Rate limited: {e}")
+            return self._create_error_report(f"rate_limited: {e}")
+        except JobsDBError as e:
+            logger.exception(f"JobsDB error: {e}")
             return self._create_error_report(str(e))
         finally:
             await self._cleanup()
@@ -121,11 +157,14 @@ class Orchestrator:
     async def _init_browser(self) -> None:
         """Initialize the browser"""
         logger.info(f"Initializing browser for account [{self.account.alias}]...")
-        self.browser = BrowserEngine(
-            self.config.browser,
-            account_alias=self.account.alias,
-        )
-        self.page = await self.browser.start()
+        # 走工厂:DefaultFactory → PlaywrightBrowser,FakeFactory → FakeBrowser
+        self.browser = self.factory.create_browser(self.account.alias)
+        self.page_controller = await self.browser.start()
+
+        # HumanSimulator 仍需原始 Playwright Page(mouse/viewport,超出 v2.0 解耦范围)
+        # PlaywrightPageController(工厂产出)暴露 raw_page;FakeBrowser 的 page 无此属性时降级
+        raw_page = getattr(self.page_controller, "raw_page", None)
+        self.page = raw_page if raw_page is not None else self.page_controller
 
         # Initialize the human behavior simulator
         self.human = HumanSimulator(
@@ -136,11 +175,13 @@ class Orchestrator:
             delay_variance_ms=self.config.simulation.typing_delay_variance_ms,
         )
 
-        # Initialize the JobsDB handler
-        self.login_handler = LoginHandler(
-            self.page, self.config.jobsdb, self.human, self.account
+        # Initialize the JobsDB handler — 走工厂
+        # 传 config.login(LoginConfig):激活 manual/auto 模式切换
+        self.login_handler = self.factory.create_login_handler(
+            self.page_controller, self.config.jobsdb, self.human, self.account,
+            login_config=self.config.login,
         )
-        self.scraper = HomepageScraper(self.page, self.human)
+        self.scraper = self.factory.create_scraper(self.page_controller, self.human)
 
     async def _ensure_login(self) -> bool:
         """Ensure login status"""
@@ -150,12 +191,12 @@ class Orchestrator:
             logger.error(f"Login failed: {e}")
             return False
 
-    async def _scrape_jobs(self) -> List[JobListing]:
+    async def _scrape_jobs(self) -> list[JobListing]:
         """Grab positions from the homepage"""
         logger.info("Navigating to homepage to scrape jobs...")
 
-        # Navigate to the homepage
-        await self.browser.goto(self.config.jobsdb.homepage_url)
+        # Navigate to the homepage(走 PageController 接口)
+        await self.page_controller.goto(self.config.jobsdb.homepage_url)
         await asyncio.sleep(3)  # Wait for dynamic content to load
 
         # Grab positions
@@ -167,18 +208,22 @@ class Orchestrator:
 
         return jobs
 
-    async def _process_queue(self, queue: List[JobListing]) -> None:
+    async def _process_queue(self, queue: list[JobListing]) -> None:
         """Process the application queue"""
         logger.info(f"Processing {len(queue)} jobs...")
 
         for i, job in enumerate(queue, 1):
+            # max_jobs 硬上限(覆盖 build_queue 的 max_applies_per_session 上限)
+            if i > self.max_jobs:
+                logger.info(f"Reached max_jobs limit ({self.max_jobs}), stopping")
+                break
             logger.info(f"[{i}/{len(queue)}] Processing: {job.title} @ {job.company}")
 
             # Frequency limit check
             await self.rate_limiter.wait_if_needed()
 
             # Check if suspected of being detected
-            if self.detection_suspected:
+            if self.detection_suspected:  # noqa: SIM102 (nested for comment clarity)
                 if self.consecutive_failures >= self.config.monitoring.suspicion_threshold:
                     logger.warning("Detection threshold reached, aborting session")
                     self.tracker.end_session(
@@ -200,7 +245,7 @@ class Orchestrator:
                 self.consecutive_failures += 1
             elif result.status == ApplyStatus.CAPTCHA:
                 # CAPTCHA, wait for manual resolution
-                await self.alert.captcha_alert(self.page, self.page.url)
+                await self.alert.captcha_alert(self.page_controller, self.page.url)
                 self.consecutive_failures = 0
 
             # Record the application result
@@ -214,7 +259,7 @@ class Orchestrator:
                 )
 
             # Random distraction behavior (simulate real human "daydreaming")
-            if i < len(queue) and not self.detection_suspected:
+            if i < len(queue) and not self.detection_suspected:  # noqa: SIM102
                 if asyncio.iscoroutinefunction(self.human.random_distractor):
                     await self.human.random_distractor()
 
@@ -234,7 +279,7 @@ class Orchestrator:
         """
         try:
             # Navigate to the position details page
-            detail_page = JobDetailPage(self.page, job.url, self.human)
+            detail_page = JobDetailPage(self.page_controller, job.url, self.human)
             await detail_page.navigate_with_simulation()
 
             # Check if already applied
@@ -246,35 +291,65 @@ class Orchestrator:
                     reason="already_applied",
                 )
 
-            # Get the apply button
+            # Get the apply button(只投 Quick Apply;标准 Apply 职位跳过)
             apply_button = await detail_page.get_apply_button()
             if not apply_button:
-                logger.warning(f"Apply button not found for {job.title}")
+                # v1.0 策略:无 quick-apply 按钮 = 标准 Apply 职位(跳外部/需手动),不投。
+                # 旧版判 FAILED,连续 2 个就误触 detection 阈值中止会话(e2e 2026-07-22 暴露)。
+                logger.info(f"No Quick Apply button for {job.title}, skipping (standard Apply)")
                 return ApplyResult(
-                    status=ApplyStatus.FAILED,
+                    status=ApplyStatus.SKIPPED,
                     job_id=job.id,
-                    error_message="Apply button not found",
+                    reason="not_quick_apply",
                 )
 
             # Click the apply button
-            if self.human:
-                await self.human.click_apply_button(apply_button)
-            else:
-                await apply_button.click()
-                await asyncio.sleep(2)
+            # e2e(2026-07-22)暴露:详情页 React 重渲染会让拿到的 ElementHandle 在点击前
+            # detached → "Element is not attached to the DOM"。标准解法:detached 时
+            # 重新拉取按钮再点(最多 3 次);若重拉时页面已跳 /apply,说明上次点击其实已生效。
+            clicked = False
+            for attempt in range(3):
+                try:
+                    if attempt > 0:
+                        apply_button = await detail_page.get_apply_button()
+                        if not apply_button:
+                            if "/apply" in self.page_controller.url:
+                                clicked = True
+                                break
+                            return ApplyResult(
+                                status=ApplyStatus.SKIPPED,
+                                job_id=job.id,
+                                reason="not_quick_apply",
+                            )
+                    if self.human:
+                        await self.human.click_apply_button(apply_button)
+                    else:
+                        await apply_button.click()
+                        await asyncio.sleep(2)
+                    clicked = True
+                    break
+                except Exception as e:
+                    if "not attached" not in str(e):
+                        raise
+                    logger.warning(
+                        f"Apply button detached (attempt {attempt + 1}/3), refetching: {e}"
+                    )
+                    await asyncio.sleep(1)
+            if not clicked:
+                raise JobsDBError(f"Apply button keeps detaching for job {job.id}")
 
             # Wait for the form/modal to appear
             await asyncio.sleep(2)
 
             # Handle the application flow
-            apply_flow = ApplyFlow(self.page, self.human)
+            apply_flow = ApplyFlow(self.page_controller, self.human)
             result = await apply_flow.apply(job.id)
 
             return result
 
         except Exception as e:
             logger.exception(f"Error applying to job {job.id}: {e}")
-            screenshot = await capture_screenshot(self.page, f"error_{job.id}")
+            screenshot = await capture_screenshot(self.page_controller, f"error_{job.id}")
             return ApplyResult(
                 status=ApplyStatus.FAILED,
                 job_id=job.id,

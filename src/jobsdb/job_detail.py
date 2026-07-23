@@ -5,16 +5,16 @@
 import asyncio
 from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 from src.jobsdb.exceptions import JobNotFoundError
 from src.jobsdb.selectors import (
     ALREADY_APPLIED_BADGE,
     APPLY_BUTTON,
-    APPLY_NOW_BUTTON,
     EASY_APPLY_BUTTON,
     JOB_DESCRIPTION,
+    JOB_DETAIL_APPLY_LINK,
     JOB_DETAIL_COMPANY,
     JOB_DETAIL_LOCATION,
     JOB_DETAIL_SALARY,
@@ -28,7 +28,7 @@ from src.utils.screenshot import capture_screenshot
 class JobDetailPage:
     """职位详情页处理器"""
 
-    def __init__(self, page: Page, job_url: Optional[str] = None,
+    def __init__(self, page: PageController, job_url: Optional[str] = None,
                  human: Optional[HumanSimulator] = None):
         self.page = page
         self.job_url = job_url
@@ -62,7 +62,7 @@ class JobDetailPage:
         title = await self._get_job_title()
         if not title:
             logger.warning("Job title not found, page may have failed to load")
-            screenshot = await capture_screenshot(self.page, "job_detail_error")
+            await capture_screenshot(self.page, "job_detail_error")
             raise JobNotFoundError(f"Failed to load job detail page: {url}")
 
         logger.debug(f"Loaded job: {title}")
@@ -86,27 +86,58 @@ class JobDetailPage:
             return False
 
     async def get_apply_button(self):
-        """
-        获取申请按钮
+        """获取 Quick Apply 按钮(只投一键申请的职位)
 
-        尝试多种选择器，因为不同职位可能有不同的申请按钮
-        """
-        selectors = [
-            EASY_APPLY_BUTTON,
-            QUICK_APPLY_BUTTON,
-            APPLY_BUTTON,
-            APPLY_NOW_BUTTON,
-        ]
+        v1.0 策略:JobsDB 只投 Quick/Easy Apply 职位(站内一键完成);
+        标准 "Apply"/"Apply now" 常跳外部站点或需手动填长表,不自动投。
 
-        for selector in selectors:
+        v2.0 强化:无 quick-apply 按钮 = 标准 Apply 职位,返回 None,
+        由 orchestrator 判 SKIPPED(not_quick_apply),不计入连续失败。
+
+        e2e(2026-07-22)回归:旧版用 QUICK_APPLY_BUTTON/EASY_APPLY_BUTTON 选择器,
+        但当前 JobsDB DOM 里 quick/standard apply **共用同一个**申请入口:
+            <a data-automation="job-detail-apply" href="/job/{id}/apply">Quick apply</a>
+            <a data-automation="job-detail-apply" href="/job/{id}/apply">Apply</a>
+        区别只在按钮文案("Quick apply" vs "Apply"),没有独立的 quick/easy 按钮 DOM,
+        也没有 data-automation="quick-apply" 属性。所以旧选择器永远命中 0 → 全 SKIPPED。
+
+        正确做法:用 JOB_DETAIL_APPLY_LINK 找到统一入口,再读文案——
+        含 "quick apply"(或 easy apply / 中文变体)才投,否则返回 None(标准 Apply)。
+        旧的独立按钮选择器保留为兜底,防御 JobsDB 其他页面的旧 DOM 变体。
+        """
+        # 1) 主路径:统一申请入口 job-detail-apply,按文案区分 quick/standard
+        link = await self.page.query_selector(JOB_DETAIL_APPLY_LINK)
+        if link:
+            is_visible = await link.is_visible()
+            if is_visible:
+                text = (await link.text_content() or "").strip().lower()
+                if self._is_quick_apply_text(text):
+                    return link
+                # 可见但文案不含 quick apply → 标准 Apply,跳过
+                logger.info(
+                    f"job-detail-apply found but text='{text[:40]}' "
+                    f"is not quick-apply, skipping (standard Apply)"
+                )
+                return None
+
+        # 2) 兜底:旧 DOM 变体(独立 quick/easy 按钮)——当前 JobsDB 主站已无,
+        # 但保留以防部分子页面/旧版残存。命中即投(选择器本身已限定 quick/easy)。
+        for selector in [QUICK_APPLY_BUTTON, EASY_APPLY_BUTTON]:
             btn = await self.page.query_selector(selector)
-            if btn:
-                # 确认按钮是可见且可点击的
-                is_visible = await btn.is_visible()
-                if is_visible:
-                    return btn
+            if btn and await btn.is_visible():
+                return btn
 
         return None
+
+    @staticmethod
+    def _is_quick_apply_text(text: str) -> bool:
+        """判断按钮文案是否表示 quick/easy apply(中英文变体)"""
+        quick_markers = [
+            "quick apply", "easy apply",
+            "快速申请", "快速申請", "简单申请", "簡單申請",
+            "一键申请", "一鍵申請",
+        ]
+        return any(m in text for m in quick_markers)
 
     async def get_job_info(self) -> dict:
         """获取职位详细信息"""
@@ -150,11 +181,15 @@ class JobDetailPage:
         return info
 
     async def _get_job_title(self) -> Optional[str]:
-        """获取职位标题"""
+        """获取职位标题
+
+        v2.0: `except Exception: pass` → 捕获 + debug 日志
+        (三分法 B 类:降级 — 标题取不到返回 None,不阻断)。
+        """
         try:
             title_el = await self.page.query_selector(JOB_DETAIL_TITLE)
             if title_el:
                 return await title_el.text_content()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get job title: {e}")
         return None

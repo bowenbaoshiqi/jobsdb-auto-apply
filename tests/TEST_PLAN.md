@@ -1,6 +1,55 @@
 # JobsDB 简历投递助手 — 测试用例文档
 
-## 测试策略
+## v2.0 测试体系更新（2026-07-20）
+
+v2.0 重构后，测试体系从「单元/集成/e2e 三层」演进为**三分类 marker**，与 pytest 配置对齐（`pyproject.toml` 的 `markers` + `addopts = "-m 'not e2e'"`）：
+
+| 分类 | marker | 数量(v2.0) | 目的 | CI |
+|------|--------|-----------|------|-----|
+| **unit** | `@pytest.mark.unit` | ~250 | 纯单元测试，用 `FakePageController` / `FakeFactory`，毫秒级，不起浏览器、不落盘 | ✅ 必跑 |
+| **characterization** | `@pytest.mark.characterization` | ~40 | 锁定 v1.0 行为的安全网——重构前先写，重构后必须保持 green | ✅ 跑 |
+| **e2e** | `@pytest.mark.e2e` | ~15 | 真实 JobsDB + 手动登录 / 真实 Chromium，慢、需账号 | ❌ 默认跳过 |
+
+### v2.0 新增的测试维度
+
+1. **接口契约测试**（`test_browser_ports.py`）：验证 `BrowserPort` / `PageController` Protocol 的方法签名齐全，确保 `PlaywrightPageController` 与 `FakePageController` 满足同一契约。
+
+2. **DI 工厂测试**（`test_factory.py`）：验证 `DefaultFactory` / `FakeFactory` 都实现 `ComponentFactory` 的 10 个 create 方法；`FakeFactory` 生产的组件不起浏览器、用 `:memory:` DB。
+
+3. **Orchestrator 边界异常测试**（`test_orchestrator.py::TestOrchestratorBoundaryExceptions`）：验证 `run()` 顶层只捕获 `JobsDBError` 子类，按三分法分流：
+   - `CaptchaDetectedError` → captcha 报告
+   - `SessionExpiredError` → session_expired 报告
+   - `RateLimitError` → rate_limited 报告
+   - 其他 `Exception` → **上抛**（不被静默吞掉）
+
+4. **apply 状态机步骤测试**（`test_apply_steps.py`）：7 个 `StepHandler` 各自用 `FakePageController` 独立测试，不依赖完整流程。
+
+### 异常三分法（v2.0 spec §7.3）
+
+| 类 | 处理 | 例子 |
+|----|------|------|
+| **A（重试）** | 捕获 + 重试 / 等待 | `RateLimitError` → 退避后重试 |
+| **B（降级）** | 捕获 + 记日志 + 继续 | cookie banner 关闭失败、`wait_for_load_state` 超时 |
+| **C（上抛）** | 捕获 + 转报告 / 上抛 | `CaptchaDetectedError`、`SessionExpiredError`、`LoginError` |
+
+v2.0 清零了 v1.0 的 8 处 `except Exception: pass`（静默吞错），每处都按三分法归类。
+
+### 运行命令
+
+```bash
+uv run pytest                          # 默认: unit + characterization(不起浏览器)
+uv run pytest -m unit                  # 只跑单测
+uv run pytest -m characterization      # 只跑特征测试
+uv run pytest -m ''                    # 全部(含 e2e,需真实环境)
+uv run pytest --cov=src --cov-report=term-missing  # 带覆盖率(卡 fail_under=60)
+uv run ruff check src/ tests/          # lint(0 errors)
+```
+
+当前状态：**298 passed, 1 skipped, coverage 65.37%, ruff 0 errors**。
+
+---
+
+## v1.0 测试策略（历史，保留供参考）
 
 | 类型 | 数量 | 层级 | 目标 |
 |------|------|------|------|

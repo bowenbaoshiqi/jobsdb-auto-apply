@@ -14,11 +14,11 @@ HTML 结构：
 """
 
 import asyncio
-from typing import List, Optional
+from typing import Optional
 
-from playwright.async_api import Page
 from loguru import logger
 
+from src.browser.ports.page_controller import PageController
 from src.simulation.behavior import HumanSimulator
 from src.storage.models import JobListing
 
@@ -26,11 +26,11 @@ from src.storage.models import JobListing
 class HomepageScraper:
     """首页职位抓取器"""
 
-    def __init__(self, page: Page, human: Optional[HumanSimulator] = None):
+    def __init__(self, page: PageController, human: Optional[HumanSimulator] = None):
         self.page = page
         self.human = human
 
-    async def get_recommended_jobs(self, max_jobs: int = 20) -> List[JobListing]:
+    async def get_recommended_jobs(self, max_jobs: int = 20) -> list[JobListing]:
         """
         抓取首页职位列表
         """
@@ -54,7 +54,8 @@ class HomepageScraper:
                 const seen = new Set();
 
                 // 策略1：推荐职位链接
-                const links = document.querySelectorAll('a[data-automation^="recommendedJobLink_"]');
+                const sel1 = 'a[data-automation^="recommendedJobLink_"]';
+                const links = document.querySelectorAll(sel1);
                 links.forEach(link => {
                     const href = link.getAttribute('href') || '';
                     const idMatch = href.match(/\\/job\\/(\\d+)/);
@@ -89,7 +90,9 @@ class HomepageScraper:
                         title = (link.textContent || '').trim().substring(0, 100);
                     }
 
-                    const url = href.startsWith('http') ? href : 'https://hk.jobsdb.com' + href.split('?')[0];
+                    const base = 'https://hk.jobsdb.com';
+                    const path = href.split('?')[0];
+                    const url = href.startsWith('http') ? href : base + path;
 
                     jobs.push({
                         id: id,
@@ -102,7 +105,10 @@ class HomepageScraper:
 
                 // 策略2：如果策略1没找到，尝试通用职位卡片
                 if (jobs.length === 0) {
-                    const cards = document.querySelectorAll('article, [data-automation*="job-card"], [data-automation*="job-list"]');
+                    const sel2 = (
+                        'article, [data-automation*="job-card"], [data-automation*="job-list"]'
+                    );
+                    const cards = document.querySelectorAll(sel2);
                     cards.forEach(card => {
                         const link = card.querySelector('a[href*="/job/"]');
                         if (!link) return;
@@ -112,8 +118,11 @@ class HomepageScraper:
                         if (!id || seen.has(id)) return;
                         seen.add(id);
 
-                        const title = card.getAttribute('aria-label') || link.textContent.trim() || 'Unknown Job';
-                        const url = href.startsWith('http') ? href : 'https://hk.jobsdb.com' + href.split('?')[0];
+                        const label = card.getAttribute('aria-label');
+                        const title = label || link.textContent.trim() || 'Unknown Job';
+                        const base = 'https://hk.jobsdb.com';
+                    const path = href.split('?')[0];
+                    const url = href.startsWith('http') ? href : base + path;
 
                         jobs.push({
                             id: id,

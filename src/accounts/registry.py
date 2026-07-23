@@ -8,10 +8,8 @@
 """
 
 import json
-import re
-import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -64,7 +62,7 @@ class AccountRegistry:
 
     # ---- 读取 / 解析 ----
 
-    def list_all(self) -> List[Account]:
+    def list_all(self) -> list[Account]:
         """列出 accounts/ 下所有已注册账户"""
         accounts = []
         for json_file in sorted(self.accounts_dir.glob("*.json")):
@@ -92,6 +90,7 @@ class AccountRegistry:
     def resolve_active(
         self,
         preferred: Optional[str] = None,
+        allow_placeholder: bool = False,
     ) -> Account:
         """
         解析当前应使用的账户。
@@ -101,7 +100,10 @@ class AccountRegistry:
         2. .env 中有 JOBSDB_EMAIL / JOBSDB_PASSWORD -> 构造 default 账户（向后兼容）
         3. data/.active_account 有记录 -> 读该别名
         4. 读 accounts/ 下唯一的账户文件
-        5. 报错
+        5. allow_placeholder=True -> 返回空凭证占位账户(manual 模式,无需凭证)
+        6. 报错
+
+        allow_placeholder 供 manual 登录模式用:持久化 profile 即凭证,不要求 email/password。
         """
         if preferred:
             acc = self.get(preferred)
@@ -109,7 +111,7 @@ class AccountRegistry:
                 logger.info(f"使用指定账户: {acc.alias}")
                 return acc
             raise ValueError(
-                f"未找到账户 '{preferred}'。请先用 `python -m src.main account add {preferred}` 添加"
+                f"未找到账户 '{preferred}'。请先用 `python -m src.main account add {preferred}` 添加"  # noqa: E501
             )
 
         # 向后兼容：.env 单账户
@@ -136,6 +138,12 @@ class AccountRegistry:
         all_accounts = self.list_all()
         if len(all_accounts) == 1:
             return all_accounts[0]
+
+        # manual 模式兜底:无需凭证,返回占位账户(持久化 profile 即凭证)
+        if allow_placeholder:
+            logger.info("无账户配置,返回占位账户(manual 模式,无需凭证)")
+            return Account(alias="default", email="", password="",
+                           notes="manual 模式占位账户,不持有凭证")
 
         raise ValueError(
             "没有可用账户。请先添加账户：\n"
@@ -181,7 +189,12 @@ class AccountRegistry:
 
     @staticmethod
     def mask_email(email: str) -> str:
-        """邮箱脱敏：显示前 3 位（或全部如果太短）"""
+        """邮箱脱敏：显示前 3 位（或全部如果太短）
+
+        空 / 无 @ 的输入原样返回(不崩溃),供 manual 模式占位账户(email="")用。
+        """
+        if not email or "@" not in email:
+            return email or ""
         local, domain = email.split("@", 1)
         shown = local[:3] if len(local) > 3 else local
         if len(local) > 3:

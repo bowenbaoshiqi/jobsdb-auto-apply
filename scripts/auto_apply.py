@@ -31,6 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from config.settings import BrowserConfig, AppConfig
 from src.browser.engine import BrowserEngine
+from src.browser.playwright_page_controller import PlaywrightPageController
 from src.jobsdb.homepage import HomepageScraper
 from src.simulation.behavior import HumanSimulator
 from src.storage.database import Database
@@ -1260,7 +1261,7 @@ async def run(max_apply: int = 5):
         # ── 5. 抓取职位 ──
         log_print("🔍 抓取职位...", flush=True)
         human = HumanSimulator(page)
-        scraper = HomepageScraper(page, human)
+        scraper = HomepageScraper(PlaywrightPageController(page), human)
         fetch_count = max(max_apply * 3, 20)
         jobs = await scraper.get_recommended_jobs(max_jobs=fetch_count)
         log_print(f"✅ 找到 {len(jobs)} 个职位\n", flush=True)

@@ -5,7 +5,7 @@ Scheduling and control module
 import asyncio
 import random
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -21,7 +21,7 @@ class ApplyQueue:
         self.db = db
         self.config = config or get_config().scheduler
 
-    def build_queue(self, jobs: List[JobListing]) -> List[JobListing]:
+    def build_queue(self, jobs: list[JobListing]) -> list[JobListing]:
         """
         Build the application queue, filtering out already applied positions
 
@@ -45,7 +45,7 @@ class ApplyQueue:
         # Limit the number per session
         return prioritized[:self.config.max_applies_per_session]
 
-    def _prioritize(self, jobs: List[JobListing]) -> List[JobListing]:
+    def _prioritize(self, jobs: list[JobListing]) -> list[JobListing]:
         """
         Sort jobs by priority
 
@@ -115,6 +115,12 @@ class RateLimiter:
                     f"Waiting {wait_seconds:.0f}s (until tomorrow)"
                 )
                 await asyncio.sleep(wait_seconds)
+                return
+
+            # 第一次申请不等待(hour_count==0 表示本小时无记录,即首个职位),
+            # 避免 5 个职位的测试要等 4×延迟。从第二个职位开始才走 min_delay + 抖动。
+            if hour_count == 0:
+                logger.debug("Rate limiter: first apply this hour, skipping min delay")
                 return
 
         # Minimum interval waiting

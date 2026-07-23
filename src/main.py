@@ -4,6 +4,9 @@ CLI entry point
 Provides command line interface for controlling the job application assistant.
 """
 
+import os
+import shutil
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -16,7 +19,6 @@ from src.accounts.registry import Account, AccountRegistry
 from src.monitor.logger import configure_logger
 from src.orchestrator import Orchestrator
 from src.storage.database import Database
-from src.utils.screenshot import generate_session_id
 
 app = typer.Typer(
     name="jobsdb-assistant",
@@ -61,17 +63,34 @@ def start(
         False, "--headless", "-h",
         help="无头模式（不显示浏览器窗口）",
     ),
+    login_mode: Optional[str] = typer.Option(
+        None, "--login-mode",
+        help="登录模式: auto(自动填密码,需凭证) / manual(等用户手动登录,无需凭证)。"
+             "覆盖 config.login.mode",
+    ),
 ):
     """启动简历投递"""
     config = get_config()
 
-    # 解析账户
-    registry = AccountRegistry()
-    resolved = registry.resolve_active(account)
+    # 登录模式覆盖(CLI 旗标优先于 config.login.mode)— 必须在解析账户前,
+    # 因为 manual 模式下 resolve_active 用 allow_placeholder 兜底(无需凭证)
+    if login_mode:
+        config.login.mode = login_mode  # pydantic validator 校验 auto|manual
+    # manual 模式必须有头(用户要在浏览器窗口手动登录)
+    if config.login.mode == "manual":
+        config.browser.headless = False
 
     # If headless mode is specified, update the configuration
     if headless:
         config.browser.headless = True
+
+    # 解析账户
+    registry = AccountRegistry()
+    # manual 模式不要求凭证:无账户时返回占位(持久化 profile 即凭证)
+    resolved = registry.resolve_active(
+        account,
+        allow_placeholder=(config.login.mode == "manual"),
+    )
 
     # Display startup information
     console.print(Panel.fit(
@@ -79,7 +98,9 @@ def start(
         f"Account: [cyan]{resolved.alias}[/cyan] ({AccountRegistry.mask_email(resolved.email)})\n"
         f"Target: {config.jobsdb.homepage_url}\n"
         f"Max jobs: {max_jobs or config.scheduler.max_applies_per_session}\n"
-        f"Headless: {config.browser.headless}",
+        f"Headless: {config.browser.headless}\n"
+        f"Login mode: [yellow]{config.login.mode}[/yellow]"
+        + (" (manual 需在浏览器窗口登录)" if config.login.mode == "manual" else ""),
         title="Starting",
         border_style="green",
     ))
@@ -252,7 +273,7 @@ def validate():
     if accounts:
         console.print("\n[bold]已配置账户:[/bold]")
         for acc in accounts:
-            console.print(f"  [green]✓[/green] {acc.alias} ({AccountRegistry.mask_email(acc.email)})")
+            console.print(f"  [green]✓[/green] {acc.alias} ({AccountRegistry.mask_email(acc.email)})")  # noqa: E501
     else:
         console.print("\n[dim]未在 accounts/ 下注册额外账户[/dim]")
 
@@ -280,7 +301,6 @@ def reset(
     ),
 ):
     """重置数据（危险操作！）"""
-    import shutil
 
     if all_data:
         profile = True
@@ -293,7 +313,7 @@ def reset(
     if all_data:
         confirm = typer.confirm("确定要重置所有数据吗？此操作不可恢复！")
     else:
-        confirm = typer.confirm(f"确定要重置选中的数据吗？")
+        confirm = typer.confirm("确定要重置选中的数据吗？")
 
     if not confirm:
         console.print("[dim]已取消[/dim]")
@@ -409,7 +429,7 @@ def account_use(
         console.print(f"[green]✓[/green] 活跃账户已切换为 {alias}")
     except ValueError as e:
         console.print(f"[red]✗[/red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @account_app.command("show")
@@ -422,7 +442,7 @@ def account_show() -> None:
         # Try to infer from .env
         config = get_config()
         if config.jobsdb.email:
-            console.print(f"当前使用 .env 默认账户: {AccountRegistry.mask_email(config.jobsdb.email)}")
+            console.print(f"当前使用 .env 默认账户: {AccountRegistry.mask_email(config.jobsdb.email)}")  # noqa: E501
         else:
             console.print("[dim]未指定活跃账户[/dim]")
         return

@@ -1,24 +1,25 @@
 """
-conftest.py — 测试共享 fixtures
+conftest.py — 测试共享 fixtures (根)
+
+v2.0: 本文件只保留纯数据 fixture,不依赖浏览器。
+需要真实浏览器的 fixture (browser_engine / mock_page) 已迁到 tests/e2e/conftest.py,
+仅 -m e2e 时加载,避免单元测试被迫启动 Chromium。
 """
 
 import asyncio
 import pathlib
-import uuid
-from datetime import datetime
-
-import pytest
-import pytest_asyncio
 
 # 确保项目根目录在 path 中（便于 import）
 import sys
+
+import pytest
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
 from config.settings import AppConfig, BrowserConfig, StorageConfig
 from src.accounts.registry import Account
 from src.storage.database import Database
-from src.storage.models import JobListing, ApplyResult, ApplyStatus, SessionRecord, SessionStatus
-from src.browser.engine import BrowserEngine
+from src.storage.models import JobListing
 
 
 @pytest.fixture(scope="session")
@@ -27,36 +28,6 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def browser_engine():
-    """
-    启动测试浏览器，结束后自动关闭
-
-    使用 headed=False（无头模式）以加快测试速度。
-    注意：涉及截图/鼠标移动的测试可能需要 headed 模式，
-          可在具体测试中覆盖。
-    """
-    config = BrowserConfig(
-        headless=True,
-        user_data_dir=f"./data/browser_profile_test_{uuid.uuid4().hex[:8]}",
-    )
-    engine = BrowserEngine(config)
-    try:
-        page = await engine.start()
-        yield engine
-    finally:
-        await engine.stop()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def mock_page(browser_engine):
-    """提供已注入 stealth patches 的空 page"""
-    page = browser_engine.current_page
-    # 加载一个空白页面，确保 stealth patches 已注入
-    await page.goto("about:blank")
-    yield page
 
 
 @pytest.fixture(scope="function")

@@ -1,7 +1,5 @@
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from loguru import logger
 
@@ -13,7 +11,7 @@ class CookieStore:
         self.cookies_file = Path(cookies_file)
         self.cookies_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def save(self, cookies: List[Dict]) -> None:
+    def save(self, cookies: list[dict]) -> None:
         """保存 cookies 到文件"""
         try:
             with open(self.cookies_file, "w", encoding="utf-8") as f:
@@ -22,13 +20,13 @@ class CookieStore:
         except Exception as e:
             logger.warning(f"Failed to save cookies: {e}")
 
-    def load(self) -> List[Dict]:
+    def load(self) -> list[dict]:
         """从文件加载 cookies"""
         if not self.cookies_file.exists():
             logger.debug("No cookies file found, starting fresh")
             return []
         try:
-            with open(self.cookies_file, "r", encoding="utf-8") as f:
+            with open(self.cookies_file, encoding="utf-8") as f:
                 cookies = json.load(f)
             logger.debug(f"Loaded {len(cookies)} cookies from {self.cookies_file}")
             return cookies

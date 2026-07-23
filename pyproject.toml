@@ -59,6 +59,8 @@ target-version = ['py39']
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
 ignore = []
 
@@ -66,3 +68,22 @@ ignore = []
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
+# v2.0: 测试三分类 marker
+markers = [
+    "e2e: 需要真实 JobsDB 网络 + 手动登录(慢,CI 不跑,默认跳过)",
+    "characterization: 锁定 v1.0 行为的安全网(快,CI 跑)",
+    "unit: 纯单元测试,不依赖浏览器(快,CI 必跑)",
+]
+# 默认不跑 e2e(本地 pytest 也不会误起浏览器)
+addopts = "-m 'not e2e'"
+
+[tool.coverage.run]
+source = ["src"]
+# main.py 是 CLI 入口(@app.command 处理器 + rich console I/O),
+# 经手动/CLI 测试,不纳入单测覆盖率统计(其逻辑由被调模块覆盖)
+omit = ["*/tests/*", "*/__pycache__/*", "*/main.py"]
+
+[tool.coverage.report]
+# v2.0 阶段5: 起步门槛 60%(后续逐步提至 80%)
+fail_under = 60
+show_missing = true

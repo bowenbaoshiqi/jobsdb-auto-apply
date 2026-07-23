@@ -63,8 +63,8 @@ class ProfileManager:
                 if mtime < cutoff:
                     log_file.unlink()
                     cleaned += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to clean log {log_file}: {e}")
 
         logger.info(f"Profile cleanup completed, removed {cleaned} items")
 

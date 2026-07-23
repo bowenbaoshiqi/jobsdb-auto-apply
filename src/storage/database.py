@@ -1,9 +1,7 @@
-import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
@@ -193,7 +191,7 @@ class Database:
             ).fetchone()
             return row is not None
 
-    def get_applied_job_ids(self) -> List[str]:
+    def get_applied_job_ids(self) -> list[str]:
         """获取已投递过的职位 ID 列表"""
         where_clause, account_id = self._account_filter()
         with self._connect() as conn:
@@ -222,7 +220,7 @@ class Database:
                 account_id,
             ))
 
-    def get_applications_by_session(self, session_id: str) -> List[dict]:
+    def get_applications_by_session(self, session_id: str) -> list[dict]:
         """获取某会话的所有投递记录"""
         with self._connect() as conn:
             rows = conn.execute("""
@@ -306,7 +304,7 @@ class Database:
                 session_id,
             ))
 
-    def get_recent_sessions(self, limit: int = 10, account: Optional[str] = None) -> List[dict]:
+    def get_recent_sessions(self, limit: int = 10, account: Optional[str] = None) -> list[dict]:
         """获取最近的会话（可按账户过滤）"""
         with self._connect() as conn:
             if account:
@@ -331,7 +329,8 @@ class Database:
         _, account_id = self._account_filter()
         with self._connect() as conn:
             conn.execute("""
-                INSERT INTO captcha_events (timestamp, page_url, resolution, screenshot_path, account_id)
+                INSERT INTO captcha_events
+                    (timestamp, page_url, resolution, screenshot_path, account_id)
                 VALUES (?, ?, ?, ?, ?)
             """, (
                 datetime.now().isoformat(), page_url, resolution, screenshot_path, account_id,

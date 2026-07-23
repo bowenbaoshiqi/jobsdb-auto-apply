@@ -8,7 +8,6 @@ Stealth 反指纹模块 — 浏览器自动化最核心的反检测层
 比直接赋值更难被高级检测脚本发现。
 """
 
-from typing import List
 
 # =============================================================================
 # Patch 1: 移除 navigator.webdriver
@@ -277,7 +276,7 @@ PATCH_IFRAMES = """
 # =============================================================================
 # 所有 patches 集合
 # =============================================================================
-ALL_PATCHES: List[str] = [
+ALL_PATCHES: list[str] = [
     PATCH_WEBDRIVER,
     PATCH_WEBGL,
     PATCH_PLUGINS,
@@ -291,7 +290,7 @@ ALL_PATCHES: List[str] = [
 ]
 
 
-def get_all_scripts() -> List[str]:
+def get_all_scripts() -> list[str]:
     """获取所有 stealth patches 脚本"""
     return ALL_PATCHES.copy()
 
